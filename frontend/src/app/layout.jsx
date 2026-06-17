@@ -11,8 +11,8 @@ import { Suspense } from "react";
 import Loading from "./Common/Loading";
 
 export const metadata = {
-  title: "Mijn Bureaublad",
-  description: "Open BSW bureaublad",
+  title: "Keep Office",
+  description: "Keep Office — your self-hosted digital workplace",
 };
 
 export default async function RootLayout({ children }) {

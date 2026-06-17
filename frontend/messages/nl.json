@@ -1,7 +1,7 @@
 {
   "HomePage": {
-    "title": "Mijn Bureau",
-    "welcome": "Welkom bij jouw bureau",
+    "title": "Keep Office",
+    "welcome": "Welkom bij Keep Office",
     "logout": "Uitloggen"
   },
   "Header": {
@@ -68,7 +68,7 @@
     "loginButton": "Inloggen"
   },
   "Footer": {
-    "copyright": "Mijn Bureau ©",
+    "copyright": "Keep Office ©",
     "helpdesk": "Helpdesk"
   },
   "Navigation": {
