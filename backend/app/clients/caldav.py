@@ -1,10 +1,13 @@
-# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportAttributeAccessIssue=false, reportUnknownArgumentType=false, reportAssignmentType=false
-from datetime import date, datetime
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportAttributeAccessIssue=false, reportUnknownArgumentType=false, reportAssignmentType=false, reportCallIssue=false
+from datetime import date, datetime, timedelta, timezone
 
 from app.models.calendar import Calendar
 from app.models.task import Task
 from caldav import DAVClient
 from caldav.requests import HTTPBearerAuth
+
+# Number of days ahead (including today) to include in the upcoming-events window.
+UPCOMING_DAYS = 3
 
 
 class CaldavClient:
@@ -20,21 +23,53 @@ class CaldavClient:
 
         events_today: list[Calendar | None] = []
 
-        for calendar in calendars:
-            check_date_start = datetime.combine(check_date, datetime.min.time())
-            check_date_end = datetime.combine(check_date, datetime.max.time())
-            events = calendar.search(start=check_date_start, end=check_date_end, event=True, expand=True)
-            for event in events:
-                event_instance = event.instance.vevent
-                events_today.append(
-                    Calendar(
-                        title=event_instance.summary.value,
-                        start=event_instance.dtstart.value,
-                        end=event_instance.dtend.value,
-                    )
-                )
+        now = datetime.now(timezone.utc)
+        window_start = datetime.combine(check_date, datetime.min.time())
+        window_end = datetime.combine(check_date + timedelta(days=UPCOMING_DAYS), datetime.max.time())
 
+        for calendar in calendars:
+            # expand=False: Nextcloud's CalDAV does not expand recurrences over a
+            # multi-day range (returns nothing), so we fetch master objects and
+            # parse the icalendar component directly.
+            events = calendar.search(start=window_start, end=window_end, event=True, expand=False)
+            for event in events:
+                for component in event.icalendar_instance.walk("vevent"):
+                    summary = component.get("summary")
+                    dtstart = component.get("dtstart")
+                    dtend = component.get("dtend")
+                    if summary is None or dtstart is None:
+                        continue
+                    start_value = dtstart.dt
+                    end_value = dtend.dt if dtend is not None else start_value
+                    # Skip events that have already finished (incl. earlier today).
+                    if self._is_past(end_value, now):
+                        continue
+                    events_today.append(
+                        Calendar(
+                            title=str(summary),
+                            start=start_value,
+                            end=end_value,
+                        )
+                    )
+
+        events_today.sort(key=lambda e: self._sort_key(e.start))
         return events_today
+
+    @staticmethod
+    def _is_past(value: datetime | date, now: datetime) -> bool:
+        # datetime is a subclass of date, so check it first.
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            return value < now
+        # All-day events carry a plain date; past only if before today.
+        return value < now.date()
+
+    @staticmethod
+    def _sort_key(value: datetime | date) -> datetime:
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return datetime.combine(value, datetime.min.time(), tzinfo=timezone.utc)
 
     def get_tasks(self) -> list[Task]:
         principal = self.client.principal()
@@ -44,7 +79,7 @@ class CaldavClient:
 
         for calendar in calendars:
             for task in calendar.todos():
-                task_instance = task.instance.vtodo
+                task_instance = task.vobject_instance.vtodo
                 task_summary: str = task_instance.summary.value
                 task_start: datetime = task_instance.dtstart.value if hasattr(task_instance, "dtstart") else None
                 task_due: datetime = task_instance.due.value if hasattr(task_instance, "due") else None
