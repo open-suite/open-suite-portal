@@ -1,23 +1,11 @@
 "use client";
 import {
-  StarFilled,
-  StarOutlined,
   ReloadOutlined,
   ArrowRightOutlined,
   SettingOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
-import {
-  Button,
-  Card,
-  Divider,
-  Result,
-  Input,
-  Row,
-  Col,
-  Dropdown,
-  Space,
-} from "antd";
+import { Card, Divider, Result, Input, Dropdown, Space } from "antd";
 import React, { useState } from "react";
 import { useTranslations } from "../../i18n/TranslationsProvider";
 import { useDashboard } from "../Components/Context/DashboardContext";
@@ -28,8 +16,6 @@ function Widget({
   children,
   error,
   loading = false,
-  favorite,
-  setFavorite = undefined,
   setSearch = undefined,
   placeholder = "",
   onRefresh = undefined,
@@ -102,32 +88,19 @@ function Widget({
         <Result status="warning" title={error} className="space-min-up" />
       ) : (
         <React.Fragment>
-          <Row>
-            <Col span={setFavorite ? 22 : 24}>
-              {setSearch && (
-                <React.Fragment>
-                  <Search
-                    placeholder={placeholder || `${title} ${t("search")}`}
-                    onSearch={(t) => setSearch(t)}
-                    onChange={(e) => setValue(e.target.value)}
-                    value={value}
-                    allowClear
-                    className="widget-search"
-                  />
-                  <Divider />
-                </React.Fragment>
-              )}
-            </Col>
-            <Col span={1} push={1}>
-              {setFavorite && (
-                <Button
-                  onClick={() => setFavorite(!favorite)}
-                  type="text"
-                  icon={favorite ? <StarFilled /> : <StarOutlined />}
-                />
-              )}
-            </Col>
-          </Row>
+          {setSearch && (
+            <React.Fragment>
+              <Search
+                placeholder={placeholder || `${title} ${t("search")}`}
+                onSearch={(t) => setSearch(t)}
+                onChange={(e) => setValue(e.target.value)}
+                value={value}
+                allowClear
+                className="widget-search"
+              />
+              <Divider />
+            </React.Fragment>
+          )}
 
           {children}
         </React.Fragment>
