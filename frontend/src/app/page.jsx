@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { Card, Button, Dropdown, Empty } from "antd";
+import { Button, Dropdown, Empty } from "antd";
 import { HolderOutlined, PlusOutlined } from "@ant-design/icons";
 import { useAppContext } from "./Components/Context/AppContext";
 import { DashboardContext } from "./Components/Context/DashboardContext";
@@ -12,19 +12,17 @@ import Chat from "./Components/AppWidgets/Chat/Chat";
 import { useTranslations } from "../i18n/TranslationsProvider";
 
 const ResponsiveGrid = WidthProvider(Responsive);
-const LAYOUT_KEY = "dashboard_layout_v2";
+const LAYOUT_KEY = "dashboard_layout_v3";
 const REMOVED_KEY = "dashboard_removed";
-const ADD_TILE = "__add__";
 const COLS = { lg: 12, md: 12, sm: 6, xs: 6, xxs: 6 };
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
 const ONE_COL = new Set(["sm", "xs", "xxs"]);
-const WIDGET_H = 8; // default widget height (rows) — big enough to be usable
-const ADD_H = 4;
+const WIDGET_H = 5; // default widget height (rows) — compact by default
 
 // Build a complete layout for every breakpoint: reuse the saved position/size
-// for items we've seen, and drop in a sensible default for anything new (a
-// just-added widget). This keeps the grid fully controlled, so saved sizes
-// survive refreshes and new items never come in at 1x1.
+// for items we've seen, and drop in a compact default for anything new (a
+// just-added widget). Keeps the grid fully controlled so saved sizes survive
+// refreshes and new items never come in at 1x1.
 function buildLayouts(saved, ids) {
   const out = {};
   for (const bp of Object.keys(COLS)) {
@@ -36,33 +34,33 @@ function buildLayouts(saved, ids) {
     out[bp] = ids.map((id, i) =>
       existing[id]
         ? existing[id]
-        : {
-            i: id,
-            x: (i % perRow) * w,
-            y: 9999, // bottom; vertical compaction pulls it up
-            w,
-            h: id === ADD_TILE ? ADD_H : WIDGET_H,
-            minH: 3,
-          },
+        : { i: id, x: (i % perRow) * w, y: 9999, w, h: WIDGET_H, minH: 3 },
     );
   }
   return out;
 }
 
-function AddWidgetTile({ addable, onAdd, t }) {
-  const items = addable.map((wgt) => ({
-    key: wgt.id,
-    label: wgt.title,
-    onClick: () => onAdd(wgt.id),
-  }));
+// A small "+" control in the top-right of the dashboard (not the app header,
+// not a grid widget). Clicking it lists the widgets you can add, or says
+// everything's already added.
+function AddWidgetControl({ addable, onAdd, t }) {
+  const items = addable.length
+    ? addable.map((w) => ({
+        key: w.id,
+        label: w.title,
+        onClick: () => onAdd(w.id),
+      }))
+    : [{ key: "__none__", label: t("allAdded"), disabled: true }];
   return (
-    <Card className="add-widget-card">
-      <Dropdown menu={{ items }} trigger={["click"]} disabled={!items.length}>
-        <Button type="dashed" icon={<PlusOutlined />} disabled={!items.length}>
-          {items.length ? t("addWidget") : t("allAdded")}
-        </Button>
-      </Dropdown>
-    </Card>
+    <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+      <Button
+        shape="circle"
+        size="small"
+        icon={<PlusOutlined />}
+        title={t("addWidget")}
+        aria-label={t("addWidget")}
+      />
+    </Dropdown>
   );
 }
 
@@ -123,10 +121,9 @@ export default function Home() {
 
   const visible = universe.filter((w) => !removed.includes(w.id));
   const addable = universe.filter((w) => removed.includes(w.id));
-  const items = [...visible, { id: ADD_TILE }];
   const effective = buildLayouts(
     layouts,
-    items.map((it) => it.id),
+    visible.map((it) => it.id),
   );
 
   const onLayoutChange = (_current, all) => {
@@ -140,6 +137,15 @@ export default function Home() {
 
   return (
     <DashboardContext.Provider value={dashboard}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          padding: "8px 8px 0",
+        }}
+      >
+        <AddWidgetControl addable={addable} onAdd={addWidget} t={tDash} />
+      </div>
       <ResponsiveGrid
         className="dashboard-grid"
         layouts={effective}
@@ -151,20 +157,14 @@ export default function Home() {
         compactType="vertical"
         onLayoutChange={onLayoutChange}
       >
-        {items.map((it) =>
-          it.id === ADD_TILE ? (
-            <div key={ADD_TILE} className="dashboard-item">
-              <AddWidgetTile addable={addable} onAdd={addWidget} t={tDash} />
-            </div>
-          ) : (
-            <div key={it.id} className="dashboard-item">
-              <span className="widget-drag-handle" title="Drag to rearrange">
-                <HolderOutlined />
-              </span>
-              {it.node}
-            </div>
-          ),
-        )}
+        {visible.map((it) => (
+          <div key={it.id} className="dashboard-item">
+            <span className="widget-drag-handle" title="Drag to rearrange">
+              <HolderOutlined />
+            </span>
+            {it.node}
+          </div>
+        ))}
       </ResponsiveGrid>
     </DashboardContext.Provider>
   );

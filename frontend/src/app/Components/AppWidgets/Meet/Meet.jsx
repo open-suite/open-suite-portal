@@ -24,7 +24,7 @@ const ACCESS_LEVEL_ICON = {
 // meet
 function Meet({ app }) {
   // TODO search functionality is implemented in the frontend only because Meet dose not support search
-  const [search, setSearch] = useState("");
+  const search = "";
   const [page, setPage] = useState(1);
   const [starting, setStarting] = useState(false);
   const t = useTranslations("Meet");
@@ -63,7 +63,6 @@ function Meet({ app }) {
       app={app}
       error={error}
       onRefresh={onRefresh}
-      setSearch={setSearch}
       page={page}
       setPage={setPage}
       total={meet?.count || 0}
