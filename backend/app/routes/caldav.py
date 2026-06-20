@@ -22,7 +22,16 @@ async def get_caldav_client(request: Request) -> CaldavClient:
     # Get auth from session (already refreshed by get_current_user dependency)
     new_token = await get_token(request, settings.TASK_AUDIENCE)
 
-    return CaldavClient(base_url=settings.TASK_URL, token=new_token)
+    # Also mint a Meet token (when Meet is enabled) so events without a meeting
+    # link get one auto-provisioned and become joinable from the widget.
+    meet_token = None
+    if settings.meet_enabled and settings.MEET_URL:
+        try:
+            meet_token = await get_token(request, settings.MEET_AUDIENCE)
+        except Exception:
+            meet_token = None
+
+    return CaldavClient(base_url=settings.TASK_URL, token=new_token, meet_token=meet_token)
 
 
 @router.get("/calendars/{calendar_date}")
