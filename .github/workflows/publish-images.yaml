@@ -23,9 +23,10 @@ jobs:
           - image: portal-frontend
             context: ./frontend
             target: prod
-          - image: portal-api
-            context: ./backend
-            target: ''
+          # Backend (portal-api) is upstream MinBZK and its uv.lock drifts from
+          # pyproject, so `uv sync --locked` fails to build from source. The
+          # deploy uses the pinned upstream API image directly, so we don't
+          # publish portal-api here. Re-add once the lockfile is reconciled.
     steps:
       - uses: actions/checkout@v4
 
