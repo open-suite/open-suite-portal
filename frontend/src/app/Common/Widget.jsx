@@ -15,7 +15,6 @@ const { Search } = Input;
 function Widget({
   children,
   error,
-  loading = false,
   setSearch = undefined,
   placeholder = "",
   onRefresh = undefined,
@@ -71,7 +70,6 @@ function Widget({
   return (
     <Card
       title={<span>{iconLink(title)}</span>}
-      loading={loading}
       extra={
         items.filter(Boolean).length > 0 && (
           <Dropdown menu={{ items: items.filter(Boolean) }} trigger={["click"]}>

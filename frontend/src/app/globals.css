@@ -151,6 +151,8 @@ body {
 .dashboard-item > .ant-card > .ant-card-body {
   flex: 1;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 /* The only drag point: a grip at the far left of the card header, centered. */
@@ -332,7 +334,9 @@ footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 220px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
 .custom-list-spinner {
@@ -536,12 +540,15 @@ footer {
 }
 
 .loading-space-up {
-  margin-top: 200px;
+  min-height: calc(100vh - 48px);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .position-middle {
-  display: block;
-  margin: auto;
+  margin: 0;
 }
 
 .logo {
@@ -573,7 +580,17 @@ footer {
 }
 
 .widget-list {
+  flex: 1;
   min-height: 0;
+}
+
+.widget-loading {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sheets-org-select {

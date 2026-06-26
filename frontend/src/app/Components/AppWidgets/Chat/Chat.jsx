@@ -53,8 +53,8 @@ function Chat() {
     );
   } else if (rooms === null) {
     body = (
-      <Flex justify="center" style={{ padding: 24 }}>
-        <Spin />
+      <Flex className="widget-loading" justify="center" align="center">
+        <Spin size="large" />
       </Flex>
     );
   } else if (rooms.length === 0) {

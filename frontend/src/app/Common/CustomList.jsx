@@ -19,8 +19,7 @@ const CustomList = ({
       <Flex
         justify="center"
         align="center"
-        className={`custom-list ${className}`}
-        style={{ minHeight: 220 }}
+        className={`custom-list custom-list-loading ${className}`}
       >
         <Spin size="large" />
       </Flex>
