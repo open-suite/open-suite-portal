@@ -9,13 +9,11 @@ export function useAutoRefresh(fetchFunction, interval = 30000) {
   useEffect(() => {
     // Generate random delay only once, on first effect run
     if (initialDelayRef.current === null) {
-      initialDelayRef.current = Math.floor(Math.random() * interval);
+      initialDelayRef.current = interval + Math.floor(Math.random() * interval);
     }
 
-    // Fetch immediately on mount or when dependencies change
-    fetchFunction();
-
-    // Set up the first delayed interval to stagger API calls
+    // Set up the first delayed interval to stagger API calls. Initial data
+    // loads are owned by the caller so this hook does not double-fetch on mount.
     timeoutIdRef.current = setTimeout(() => {
       // After the random delay, start the regular interval
       fetchFunction();

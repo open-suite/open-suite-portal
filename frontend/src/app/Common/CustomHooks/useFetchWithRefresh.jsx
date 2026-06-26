@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import api from "@/lib/axios";
 import { useAutoRefresh } from "./useAutoRefresh";
 import { attemptSilentLoginOrLogin } from "@/lib/silentLogin";
@@ -27,7 +27,9 @@ export function useFetchWithRefresh(url, params = {}) {
   // Fetch function
   const fetchData = useCallback(
     async (isAutoRefresh = false) => {
-      setLoading(true);
+      if (!isAutoRefresh) {
+        setLoading(true);
+      }
       try {
         const res = await api.get(fullUrl);
         setData(res.data);
@@ -39,11 +41,17 @@ export function useFetchWithRefresh(url, params = {}) {
         }
         attemptSilentLoginOrLogin(err);
       } finally {
-        setLoading(false);
+        if (!isAutoRefresh) {
+          setLoading(false);
+        }
       }
     },
     [fullUrl],
   );
+
+  useEffect(() => {
+    fetchData(false);
+  }, [fetchData]);
 
   // Auto-refresh fetch that doesn't set errors
   const autoRefreshFetch = useCallback(() => {
@@ -57,6 +65,6 @@ export function useFetchWithRefresh(url, params = {}) {
     data,
     loading,
     error,
-    onRefresh: fetchData,
+    onRefresh: () => fetchData(false),
   };
 }

@@ -1,10 +1,10 @@
 import logging
 
-import httpx
 from fastapi import Request
 
 from app.core import session
 from app.core.config import settings
+from app.core.http_clients import http_client_dependency
 from app.core.translate import _
 from app.exceptions import CredentialError, TokenExchangeError
 
@@ -29,7 +29,8 @@ async def exchange_token(
         "audience": audience,
     }
 
-    response = httpx.post(  # todo reuse http_client
+    http_client = await http_client_dependency()
+    response = await http_client.post(
         settings.OIDC_TOKEN_ENDPOINT,
         data=data,
         auth=(settings.OIDC_CLIENT_ID, settings.OIDC_CLIENT_SECRET or ""),
