@@ -58,8 +58,7 @@ function Calendar({ app }) {
               }
               title={item?.title}
               description={
-                item?.start &&
-                moment(item?.start).format("DD-MM-YYYY, HH:mm")
+                item?.start && moment(item?.start).format("DD-MM-YYYY, HH:mm")
               }
             />
             {item?.meet_url && (
