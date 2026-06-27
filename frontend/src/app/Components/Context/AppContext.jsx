@@ -12,20 +12,19 @@ export function AppProvider({ children }) {
   const [error, setError] = useState(null);
   useEffect(() => {
     const fetchConfig = async () => {
+      let redirectingToLogin = false;
       try {
         const res = await api.get("/config");
         setAppConfig(res?.data);
       } catch (err) {
         setError(err?.response);
-        // Redirect based on error
         attemptSilentLoginOrLogin(err);
-        // For other errors, the error state is already set and will be handled by the app
+        redirectingToLogin = err?.response?.status === 401;
       } finally {
-        setLoading(false);
+        if (!redirectingToLogin) setLoading(false);
       }
     };
     fetchConfig();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
