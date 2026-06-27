@@ -29,11 +29,11 @@ async def get_caldav_client(request: Request) -> CaldavClient:
 async def caldav_calendar(
     calendar_date: date,
     request: Request,
-) -> list[Calendar | None]:
+) -> list[Calendar]:
     """Get calendar events for a specific date."""
     client = await get_caldav_client(request)
 
-    calendar_items: list[Calendar | None] = client.get_calendars(
+    calendar_items: list[Calendar] = client.get_calendars(
         check_date=datetime.combine(calendar_date, datetime.min.time())
     )
 
