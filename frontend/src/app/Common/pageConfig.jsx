@@ -89,6 +89,12 @@ const OFFICE_LINKS = [
 
 const label = (t, key, fallback) => (t ? t(key) : fallback);
 
+const nextcloudLaunchUrl = (base, path) => {
+  const origin = base.replace(/\/$/, "");
+  const target = `${origin}${path}`;
+  return `${origin}/apps/user_oidc/login/1?redirectUrl=${encodeURIComponent(target)}`;
+};
+
 // Link to an app: embedded (iframe) apps route internally to /{id}, others open
 // the external URL in a new tab — matching the original behaviour.
 const appLink = (app, text) =>
@@ -121,7 +127,7 @@ export const menuItem = (applications, t) => {
           key: `${entry.appId}:${child.id}`,
           label: (
             <Link
-              href={`${base}${child.path}`}
+              href={nextcloudLaunchUrl(base, child.path)}
               rel="noopener noreferrer"
               target="_blank"
             >
@@ -139,7 +145,7 @@ export const menuItem = (applications, t) => {
         key: `${entry.appId}:${entry.id}`,
         label: (
           <Link
-            href={`${base}${entry.path}`}
+            href={nextcloudLaunchUrl(base, entry.path)}
             rel="noopener noreferrer"
             target="_blank"
           >
