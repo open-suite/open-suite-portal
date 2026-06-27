@@ -5,6 +5,7 @@ from app.models.calendar import Calendar
 from app.models.task import Task
 from caldav import DAVClient
 from caldav.requests import HTTPBearerAuth
+from icalendar import Component
 
 # Number of days ahead (including today) to include in the upcoming-events window.
 UPCOMING_DAYS = 3
@@ -22,11 +23,32 @@ class CaldavClient:
 
         self.client = DAVClient(url=f"{base_url}/remote.php/dav", auth=HTTPBearerAuth(token))
 
-    def get_calendars(self, check_date: date) -> list[Calendar | None]:
+    def _existing_meet_url(self, component: Component) -> str | None:
+        """Return a Meet link already stored on the event, if any."""
+        if not self.meet_base:
+            return None
+
+        conference = component.get("conference")
+        if conference is not None:
+            values = conference if isinstance(conference, list) else [conference]
+            for value in values:
+                candidate = str(value).strip()
+                if candidate.startswith(self.meet_base):
+                    return candidate
+
+        location = component.get("location")
+        if location is not None:
+            candidate = str(location).strip()
+            if candidate.startswith(self.meet_base):
+                return candidate
+
+        return None
+
+    def get_calendars(self, check_date: date) -> list[Calendar]:
         principal = self.client.principal()
         calendars = principal.calendars()
 
-        events_today: list[Calendar | None] = []
+        events_today: list[Calendar] = []
 
         now = datetime.now(UTC)
         window_start = datetime.combine(check_date, datetime.min.time())
@@ -49,18 +71,12 @@ class CaldavClient:
                     # Skip events that have already finished (incl. earlier today).
                     if self._is_past(end_value, now):
                         continue
-                    location = component.get("location")
-                    meet_url = None
-                    if location is not None:
-                        loc = str(location).strip()
-                        if self.meet_base and loc.startswith(self.meet_base):
-                            meet_url = loc
                     events_today.append(
                         Calendar(
                             title=str(summary),
                             start=start_value,
                             end=end_value,
-                            meet_url=meet_url,
+                            meet_url=self._existing_meet_url(component),
                         )
                     )
 
