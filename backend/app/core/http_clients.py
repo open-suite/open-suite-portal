@@ -1,6 +1,8 @@
 import logging
 from typing import Annotated
 
+import os
+
 import httpx
 from fastapi import Depends
 
@@ -64,7 +66,10 @@ class HTTPClientDependency:
     async def __call__(self) -> httpx.AsyncClient:
         """Return the cached httpx.AsyncClient, creating it if needed."""
         if not self.http_client:
-            transport = StatelessTransport(httpx.AsyncHTTPTransport(retries=self.max_retries))
+            # HTTP_TLS_INSECURE=1: skip TLS verification. Only for local/dev
+            # deploys where every host serves a self-signed certificate.
+            verify = os.environ.get("HTTP_TLS_INSECURE") != "1"
+            transport = StatelessTransport(httpx.AsyncHTTPTransport(retries=self.max_retries, verify=verify))
 
             self.http_client = httpx.AsyncClient(
                 timeout=self.timeout,
