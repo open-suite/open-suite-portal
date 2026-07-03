@@ -20,7 +20,10 @@ FROM dev AS build
 
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM nginxinc/nginx-unprivileged:1.28-alpine3.21 AS prod
+# NOTE: no --platform here — the runtime stage must be the TARGET platform.
+# (BUILDPLATFORM on the node stages is fine: the static export is arch-neutral,
+# building on the runner's native arch skips QEMU.)
+FROM nginxinc/nginx-unprivileged:1.28-alpine3.21 AS prod
 
 COPY --from=build /app/dist /usr/share/nginx/html
 
