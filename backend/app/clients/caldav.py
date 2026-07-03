@@ -3,6 +3,8 @@ from datetime import UTC, date, datetime, timedelta
 
 from app.models.calendar import Calendar
 from app.models.task import Task
+import os
+
 from caldav import DAVClient
 from caldav.requests import HTTPBearerAuth
 from icalendar import Component
@@ -21,7 +23,12 @@ class CaldavClient:
         # read-only so dashboard loads do not create rooms or write calendar data.
         self.meet_base = base_url.replace("://nextcloud.", "://meet.", 1)
 
-        self.client = DAVClient(url=f"{base_url}/remote.php/dav", auth=HTTPBearerAuth(token))
+        # HTTP_TLS_INSECURE=1: local/dev self-signed deploys; caldav uses its
+        # own HTTP stack, separate from app.core.http_clients and authlib.
+        ssl_verify = os.environ.get("HTTP_TLS_INSECURE") != "1"
+        self.client = DAVClient(
+            url=f"{base_url}/remote.php/dav", auth=HTTPBearerAuth(token), ssl_verify_cert=ssl_verify
+        )
 
     def _existing_meet_url(self, component: Component) -> str | None:
         """Return a Meet link already stored on the event, if any."""
