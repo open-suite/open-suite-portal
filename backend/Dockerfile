@@ -1,4 +1,6 @@
-FROM --platform=$BUILDPLATFORM python:3.13-slim AS build
+# NOTE: no --platform — the venv contains native wheels (pydantic_core etc.),
+# so the build stage must run on the TARGET platform (QEMU under buildx).
+FROM python:3.13-slim AS build
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/

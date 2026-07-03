@@ -24,12 +24,13 @@ jobs:
             context: ./frontend
             file: ./frontend/Dockerfile
             target: prod
-          # portal-api is an overlay on the pinned upstream image (its uv.lock
-          # drifts from pyproject, so a source build fails); see
-          # backend/Dockerfile.overlay.
+          # portal-api builds from source — the uv.lock/pyproject drift that
+          # once forced an overlay on the upstream image is resolved
+          # (uv sync --locked passes), and upstream's arm64 image ships amd64
+          # wheels anyway.
           - image: portal-api
             context: ./backend
-            file: ./backend/Dockerfile.overlay
+            file: ./backend/Dockerfile
             target: ""
     steps:
       - uses: actions/checkout@v4
