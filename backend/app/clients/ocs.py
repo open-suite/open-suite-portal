@@ -50,6 +50,13 @@ class OCSClient(BaseAPIClient):
         if limit:
             params["limit"] = str(limit)
 
+        # The Activity API answers 304 Not Modified (or 204) when there are no
+        # activities at all — normal on a fresh install, not an upstream error.
+        url = self._build_url(url_string)
+        probe = await self.client.get(url, params=params, headers=self._auth_headers(), timeout=self.timeout)
+        if probe.status_code in (204, 304):
+            return FileActivityResponse(results=[], last_given=None)
+
         activities, headers = await self._get_resource_with_headers(
             path=url_string,
             model_type=list[Activity],
