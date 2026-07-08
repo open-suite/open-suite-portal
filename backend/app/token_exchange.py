@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import time
 
 from fastapi import Request
 
@@ -10,6 +12,21 @@ from app.exceptions import CredentialError, TokenExchangeError
 
 logger = logging.getLogger(__name__)
 
+# In-process cache of exchanged tokens. Every portal widget (calendar, docs,
+# meet, files) does a Keycloak token exchange per request; uncached that is a
+# ~2s round trip on every dashboard load. Key by (audience, subject token) so a
+# session refresh — which rotates the subject token — naturally misses and
+# re-exchanges. Per-pod is fine: each replica caches independently, no shared
+# state. Entries expire a safety margin before the exchanged token's own expiry.
+_TOKEN_CACHE: dict[str, tuple[str, float]] = {}
+_CACHE_MARGIN_SECONDS = 30
+_CACHE_MAX_TTL_SECONDS = 3600
+
+
+def _cache_key(subject_token: str, audience: str) -> str:
+    digest = hashlib.sha256(subject_token.encode("utf-8")).hexdigest()[:32]
+    return f"{audience}:{digest}"
+
 
 async def exchange_token(
     token: str,
@@ -18,6 +35,15 @@ async def exchange_token(
     requested_token_type: str = "urn:ietf:params:oauth:token-type:access_token",  # noqa: S107
     scope: str = "openid",
 ) -> str | None:
+    cache_key = _cache_key(token, audience)
+    cached = _TOKEN_CACHE.get(cache_key)
+    if cached is not None:
+        cached_token, expiry = cached
+        if time.time() < expiry:
+            logger.debug(f"Token exchange cache hit for audience={audience}")
+            return cached_token
+        del _TOKEN_CACHE[cache_key]
+
     logger.info(f"Exchanging token for audience={audience}")
 
     data = {
@@ -63,6 +89,22 @@ async def exchange_token(
     if not exchanged_token or not isinstance(exchanged_token, str):
         logger.error(f"Token exchange response missing 'access_token' for audience={audience}")
         raise TokenExchangeError("Token exchange returned an invalid response. Please try logging in again.")
+
+    # Cache until a safety margin before the exchanged token expires. Fall back
+    # to a short TTL if the response omits (or over-reports) expires_in.
+    try:
+        expires_in = int(token_data.get("expires_in", 60))
+    except (TypeError, ValueError):
+        expires_in = 60
+    ttl = min(max(expires_in - _CACHE_MARGIN_SECONDS, 0), _CACHE_MAX_TTL_SECONDS)
+    if ttl > 0:
+        now = time.time()
+        # Rotated subject tokens leave stale keys behind; sweep expired entries
+        # when the cache grows so it stays bounded without a background task.
+        if len(_TOKEN_CACHE) > 512:
+            for k in [k for k, (_, exp) in _TOKEN_CACHE.items() if exp <= now]:
+                del _TOKEN_CACHE[k]
+        _TOKEN_CACHE[cache_key] = (exchanged_token, now + ttl)
 
     logger.info(f"Successfully exchanged token for audience={audience}")
 
