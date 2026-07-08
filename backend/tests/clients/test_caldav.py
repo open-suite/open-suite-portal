@@ -3,9 +3,21 @@
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
+from app.clients import caldav as caldav_module
 from app.clients.caldav import CaldavClient
 from icalendar import Calendar as ICalendar
 from icalendar import Event as IEvent
+
+
+@pytest.fixture(autouse=True)
+def _clear_calendar_cache() -> None:
+    # The discovery cache is module-level and keyed by token; tests share a
+    # token, so clear it between them to avoid cross-test bleed.
+    caldav_module._CALENDAR_URL_CACHE.clear()
+    yield
+    caldav_module._CALENDAR_URL_CACHE.clear()
+
 
 MEET_BASE = "https://meet.example.com"
 BASE_URL = "https://nextcloud.example.com"
@@ -48,6 +60,7 @@ def _make_client(event: FakeEvent) -> CaldavClient:
         client = CaldavClient(base_url=BASE_URL, token="t")
     calendar = MagicMock()
     calendar.search.return_value = [event]
+    calendar.url = "https://nextcloud.example.com/remote.php/dav/calendars/user/personal/"
     principal = MagicMock()
     principal.calendars.return_value = [calendar]
     client.client.principal = MagicMock(return_value=principal)
@@ -87,3 +100,25 @@ class TestMeetLinkExtraction:
         result = _make_client(event).get_calendars(datetime(2099, 1, 1))
         event.save.assert_not_called()
         assert result[0].meet_url is None
+
+
+class TestDiscoveryCache:
+    def test_second_load_skips_principal_discovery(self) -> None:
+        event = _build_event()
+        client = _make_client(event)
+        rebuilt = MagicMock()
+        rebuilt.search.return_value = [event]
+        # On a cache hit the client rebuilds Calendar objects from cached URLs.
+        with patch("app.clients.caldav.DavCalendar", return_value=rebuilt):
+            client.get_calendars(datetime(2099, 1, 1))
+            client.get_calendars(datetime(2099, 1, 1))
+        # principal() runs on the first load (miss), is skipped on the second.
+        assert client.client.principal.call_count == 1
+
+    def test_different_token_rediscovers(self) -> None:
+        event = _build_event()
+        client = _make_client(event)
+        client.get_calendars(datetime(2099, 1, 1))
+        client.token = "other-token"  # a refreshed session rotates the token
+        client.get_calendars(datetime(2099, 1, 1))
+        assert client.client.principal.call_count == 2

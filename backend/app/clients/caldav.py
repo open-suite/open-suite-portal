@@ -1,15 +1,27 @@
-# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportAttributeAccessIssue=false, reportUnknownArgumentType=false, reportAssignmentType=false, reportCallIssue=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportAttributeAccessIssue=false, reportUnknownArgumentType=false, reportAssignmentType=false, reportCallIssue=false, reportUnknownParameterType=false
+import hashlib
 import os
+import time
 from datetime import UTC, date, datetime, timedelta
 
 from app.models.calendar import Calendar
 from app.models.task import Task
+from caldav import Calendar as DavCalendar
 from caldav import DAVClient
 from caldav.requests import HTTPBearerAuth
 from icalendar import Component
 
 # Number of days ahead (including today) to include in the upcoming-events window.
 UPCOMING_DAYS = 3
+
+# Cache of discovered calendar URLs per token. Every dashboard load re-ran
+# CalDAV principal + calendar discovery (2 sequential requests to Nextcloud,
+# ~220ms each) before doing any search. The calendar set is stable for a user,
+# and the exchanged token is itself cached upstream (stable for its lifetime),
+# so caching the discovered URLs keyed by token lets repeat loads skip
+# discovery. A token refresh rotates the key and re-discovers.
+_CALENDAR_URL_CACHE: dict[str, tuple[list[str], float]] = {}
+_CALENDAR_CACHE_TTL_SECONDS = 300
 
 
 class CaldavClient:
@@ -28,6 +40,22 @@ class CaldavClient:
         self.client = DAVClient(
             url=f"{base_url}/remote.php/dav", auth=HTTPBearerAuth(token), ssl_verify_cert=ssl_verify
         )
+
+    def _calendars(self):  # noqa: ANN202 — caldav.Calendar is untyped (see file header)
+        """Discovered calendars for this user, cached by token to skip the
+        principal + calendar-list round trips on repeat dashboard loads."""
+        key = hashlib.sha256(self.token.encode("utf-8")).hexdigest()[:32]
+        cached = _CALENDAR_URL_CACHE.get(key)
+        now = time.time()
+        if cached is not None and now < cached[1]:
+            return [DavCalendar(client=self.client, url=url) for url in cached[0]]
+
+        calendars = self.client.principal().calendars()
+        if len(_CALENDAR_URL_CACHE) > 512:
+            for k in [k for k, (_, exp) in _CALENDAR_URL_CACHE.items() if exp <= now]:
+                del _CALENDAR_URL_CACHE[k]
+        _CALENDAR_URL_CACHE[key] = ([str(c.url) for c in calendars], now + _CALENDAR_CACHE_TTL_SECONDS)
+        return calendars
 
     def _existing_meet_url(self, component: Component) -> str | None:
         """Return a Meet link already stored on the event, if any."""
@@ -51,8 +79,7 @@ class CaldavClient:
         return None
 
     def get_calendars(self, check_date: date) -> list[Calendar]:
-        principal = self.client.principal()
-        calendars = principal.calendars()
+        calendars = self._calendars()
 
         events_today: list[Calendar] = []
 
@@ -106,8 +133,7 @@ class CaldavClient:
         return datetime.combine(value, datetime.min.time(), tzinfo=UTC)
 
     def get_tasks(self) -> list[Task]:
-        principal = self.client.principal()
-        calendars = principal.calendars()
+        calendars = self._calendars()
 
         tasks_list: list[Task] = []
 
