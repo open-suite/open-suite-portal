@@ -79,10 +79,10 @@ async def exchange_token(
 
     try:
         token_data = response.json()
-    except Exception:
+    except Exception as exc:
         logger.exception(f"Token exchange returned non-JSON response for audience={audience}")
         msg = "Token exchange returned an invalid response. Please try logging in again."
-        raise TokenExchangeError(msg) from Exception
+        raise TokenExchangeError(msg) from exc
 
     exchanged_token = token_data.get("access_token")
 
