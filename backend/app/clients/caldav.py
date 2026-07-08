@@ -1,10 +1,9 @@
 # pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportAttributeAccessIssue=false, reportUnknownArgumentType=false, reportAssignmentType=false, reportCallIssue=false
+import os
 from datetime import UTC, date, datetime, timedelta
 
 from app.models.calendar import Calendar
 from app.models.task import Task
-import os
-
 from caldav import DAVClient
 from caldav.requests import HTTPBearerAuth
 from icalendar import Component

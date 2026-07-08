@@ -1,7 +1,6 @@
 import logging
-from typing import Annotated
-
 import os
+from typing import Annotated
 
 import httpx
 from fastapi import Depends
