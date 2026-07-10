@@ -78,9 +78,10 @@ export default function Home() {
     [appConfig, tChat],
   );
 
-  // null until localStorage is read (avoids a flash before hydration).
-  const [removed, setRemoved] = useState(null);
-  const [layouts, setLayouts] = useState(null);
+  // Render the complete default dashboard immediately, then apply saved
+  // preferences after hydration. Reading storage must not leave a blank page.
+  const [removed, setRemoved] = useState([]);
+  const [layouts, setLayouts] = useState({});
   useEffect(() => {
     queueMicrotask(() => {
       try {
@@ -114,7 +115,6 @@ export default function Home() {
   const addWidget = (id) =>
     persistRemoved((removed || []).filter((x) => x !== id));
 
-  if (removed === null || layouts === null) return null;
   if (!universe.length) {
     return <Empty description={tDash("noApps")} style={{ marginTop: 80 }} />;
   }
