@@ -7,7 +7,7 @@ improvements remain visible in Git history.
 
 ## Latest summary
 
-**Candidate:** `8c01738` (`ghcr.io/open-suite/portal-{frontend,api}:sha-8c01738`)
+**Candidate:** `961a122` (`ghcr.io/open-suite/portal-{frontend,api}:sha-961a122`)
 
 **Change:** Replace the config bootstrap spinner with a stable shell
 
@@ -19,18 +19,18 @@ improvements remain visible in Git history.
 
 | KPI                          |      p50 |      p75 |      p95 |     Initial target |
 | ---------------------------- | -------: | -------: | -------: | -----------------: |
-| Portal shell                 |   179 ms |   204 ms |   228 ms |      <= 100 ms p75 |
-| Dashboard visible            |   550 ms |   559 ms |   599 ms |      <= 500 ms p75 |
-| Config response -> dashboard |   366 ms |   368 ms |   370 ms |      <= 100 ms p75 |
-| First widget data            |   626 ms |   645 ms | 1,308 ms |      <= 500 ms p75 |
-| All widgets settled          | 1,011 ms | 1,046 ms | 1,682 ms |    <= 1,000 ms p75 |
+| Portal shell                 |   205 ms |   211 ms |   227 ms |      <= 100 ms p75 |
+| Dashboard visible            |   554 ms |   559 ms |   583 ms |      <= 500 ms p75 |
+| Config response -> dashboard |   365 ms |   373 ms |   383 ms |      <= 100 ms p75 |
+| First widget data            |   625 ms |   645 ms | 1,170 ms |      <= 500 ms p75 |
+| All widgets settled          | 1,012 ms | 1,038 ms | 1,538 ms |    <= 1,000 ms p75 |
 | Global spinner exposure      |     0 ms |     0 ms |     0 ms |               0 ms |
-| Widget spinner exposure      |   462 ms |   499 ms | 1,066 ms |      0 ms blocking |
-| `/config`                    |    62 ms |    64 ms |    73 ms |      <= 250 ms p95 |
-| Calendar                     |    65 ms |    75 ms |   688 ms |    <= 1,000 ms p95 |
-| Docs                         |   123 ms |   126 ms |   745 ms | <= 250 ms p95 warm |
-| Meet                         |   118 ms |   133 ms |   751 ms | <= 250 ms p95 warm |
-| Files                        |   462 ms |   501 ms | 1,066 ms |    <= 1,000 ms p95 |
+| Widget spinner exposure      |   465 ms |   496 ms |   983 ms |      0 ms blocking |
+| `/config`                    |    63 ms |    65 ms |    71 ms |      <= 250 ms p95 |
+| Calendar                     |    66 ms |    68 ms |   593 ms |    <= 1,000 ms p95 |
+| Docs                         |   120 ms |   131 ms |   641 ms | <= 250 ms p95 warm |
+| Meet                         |   120 ms |   133 ms |   660 ms | <= 250 ms p95 warm |
+| Files                        |   466 ms |   491 ms |   971 ms |    <= 1,000 ms p95 |
 
 ### Current interpretation
 
@@ -38,8 +38,8 @@ improvements remain visible in Git history.
   dashboard controls. Logged-out users retain the immediate 401 redirect path.
 - The wait state is now a fixed, noninteractive Open Suite shell. Global spinner
   exposure fell from 387 ms p75 to zero without weakening authentication.
-- Compared with the previous accepted build, shell p75 improved 10%, dashboard
-  7%, first widget data 13%, Docs 14%, Meet 10% and all widgets 6%. These smaller
+- Compared with the previous accepted build, shell p75 improved 7%, dashboard
+  7%, first widget data 13%, Docs 10%, Meet 10% and all widgets 6%. These smaller
   timing changes may include normal shared-demo variance; the zero-spinner
   result is the deterministic acceptance signal.
 - Cache-expiry misses remain visible at p95. Calendar's synchronous I/O still
@@ -80,22 +80,22 @@ Protocol:
 
 ## History
 
-### 3. Accepted: stable config bootstrap shell - `8c01738` - 2026-07-11
+### 3. Accepted: stable config bootstrap shell - `961a122` - 2026-07-11
 
 | KPI                 | Previous p75 | Candidate p75 | Change |
 | ------------------- | -----------: | ------------: | -----: |
-| Portal shell        |       226 ms |        204 ms |   -10% |
+| Portal shell        |       226 ms |        211 ms |    -7% |
 | Dashboard visible   |       599 ms |        559 ms |    -7% |
-| Config -> dashboard |       373 ms |        368 ms |    -1% |
+| Config -> dashboard |       373 ms |        373 ms |     0% |
 | First widget data   |       740 ms |        645 ms |   -13% |
-| All widgets settled |     1,109 ms |      1,046 ms |    -6% |
+| All widgets settled |     1,109 ms |      1,038 ms |    -6% |
 | Global spinner      |       387 ms |          0 ms |  -100% |
-| Widget spinner      |       510 ms |        499 ms |    -2% |
-| Config              |        65 ms |         64 ms |    -2% |
-| Calendar            |        85 ms |         75 ms |   -12% |
-| Docs                |       146 ms |        126 ms |   -14% |
+| Widget spinner      |       510 ms |        496 ms |    -3% |
+| Config              |        65 ms |         65 ms |     0% |
+| Calendar            |        85 ms |         68 ms |   -20% |
+| Docs                |       146 ms |        131 ms |   -10% |
 | Meet                |       148 ms |        133 ms |   -10% |
-| Files               |       503 ms |        501 ms |     0% |
+| Files               |       503 ms |        491 ms |    -2% |
 
 Accepted. The stable shell removes the blocking spinner while preserving the
 same authenticated bootstrap and redirect behavior.
