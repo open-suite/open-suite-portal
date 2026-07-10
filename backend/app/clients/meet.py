@@ -5,7 +5,7 @@ from typing import Any
 
 from app.clients.base import BaseAPIClient
 from app.core.translate import _
-from app.exceptions import ExternalServiceError
+from app.exceptions import CredentialError, ExternalServiceError
 from app.models.pagination import PaginatedResponse
 from app.models.room import Room
 from pydantic import TypeAdapter
@@ -50,6 +50,8 @@ class MeetClient(BaseAPIClient):
             headers=self._auth_headers(),
         )
 
+        if response.status_code == 401:
+            raise CredentialError(_("Your session has expired. Please log in again."))
         if response.status_code != 201:
             raise ExternalServiceError("Meet", _(f"Failed to create room (status {response.status_code})"))
 

@@ -5,7 +5,7 @@ from typing import Any
 
 from app.clients.base import BaseAPIClient
 from app.core.translate import _
-from app.exceptions import ExternalServiceError
+from app.exceptions import CredentialError, ExternalServiceError
 from app.models.note import Note
 from app.models.pagination import PaginatedResponse
 from pydantic import TypeAdapter
@@ -56,6 +56,8 @@ class DocsClient(BaseAPIClient):
             headers=self._auth_headers(),
         )
 
+        if response.status_code == 401:
+            raise CredentialError(_("Your session has expired. Please log in again."))
         if response.status_code != 201:
             raise ExternalServiceError("Docs", _(f"Failed to create document (status {response.status_code})"))
 

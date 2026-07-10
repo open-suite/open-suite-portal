@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     OIDC_POST_LOGOUT_REDIRECT_URI: str | None = None
     OIDC_POST_LOGIN_REDIRECT_URI: str = "/"
     OIDC_TOKEN_ENDPOINT: str = ""
+    OIDC_INTROSPECTION_ENDPOINT: str = ""
     OIDC_REVOCATION_ENDPOINT: str | None = None  # RFC 7009 token revocation
     OIDC_JWKS_ENDPOINT: str = ""
     OIDC_USERNAME_CLAIM: str = "preferred_username"

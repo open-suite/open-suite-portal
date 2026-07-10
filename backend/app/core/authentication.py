@@ -2,11 +2,13 @@ import logging
 import time
 from typing import Annotated
 
-from fastapi import Depends, Request
+import httpx
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2AuthorizationCodeBearer
 
 from app.core import session
 from app.core.config import settings
+from app.core.http_clients import http_client_dependency
 from app.core.oauth import oauth
 from app.core.translate import _
 from app.exceptions import CredentialError, TokenRefreshConflictError
@@ -46,6 +48,51 @@ async def get_current_user(
             raise CredentialError(_("Session expired. Please log in again."))
 
     return auth.user
+
+
+async def get_active_user(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Validate the portal token with the IdP during application bootstrap.
+
+    Local JWT expiry is insufficient after an upstream session is revoked: the
+    portal shell can otherwise render for several minutes while exchanged app
+    tokens already fail. This dependency is intentionally used by /config only,
+    so opening/reloading the app performs one authoritative check without
+    polling Keycloak on every widget request.
+    """
+    endpoint = settings.OIDC_INTROSPECTION_ENDPOINT
+    if not endpoint:
+        logger.warning("OIDC_INTROSPECTION_ENDPOINT is unset; skipping active-session bootstrap check")
+        return current_user
+
+    auth = await session.get_auth(request)
+    if not auth:
+        raise CredentialError(_("Not authenticated"))
+
+    try:
+        client = await http_client_dependency()
+        response = await client.post(
+            endpoint,
+            data={"token": auth.access_token, "token_type_hint": "access_token"},
+            auth=(settings.OIDC_CLIENT_ID, settings.OIDC_CLIENT_SECRET or ""),
+        )
+        response.raise_for_status()
+        active = response.json().get("active") is True
+    except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
+        logger.exception("OIDC token introspection failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_("Authentication service is temporarily unavailable"),
+        ) from exc
+
+    if not active:
+        logger.info("OIDC introspection reports an inactive portal session")
+        await session.clear_auth(request)
+        raise CredentialError(_("Session expired. Please log in again."))
+
+    return current_user
 
 
 def _needs_refresh(expires_at: int | None) -> bool:

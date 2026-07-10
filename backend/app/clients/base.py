@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 from app.core.translate import _
-from app.exceptions import ExternalServiceError
+from app.exceptions import CredentialError, ExternalServiceError
 from pydantic import TypeAdapter
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,8 @@ class BaseAPIClient:
                 kwargs["timeout"] = self.timeout
             response = await self.client.get(url, **kwargs)
 
+            if response.status_code == 401:
+                raise CredentialError(_("Your session has expired. Please log in again."))
             if response.status_code != 200:
                 raise ExternalServiceError(
                     self.service_name, _(f"Failed to fetch {path} (status {response.status_code})")

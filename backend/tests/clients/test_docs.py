@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 import httpx
 import pytest
 from app.clients.docs import DocsClient
-from app.exceptions import ExternalServiceError
+from app.exceptions import CredentialError, ExternalServiceError
 from app.models.note import Note
 
 
@@ -159,6 +159,16 @@ class TestDocsClient:
 
         assert "Docs" in str(exc_info.value)
         assert "Failed to fetch api/v1.0/documents/all/ (status 404)" in str(exc_info.value)
+
+    async def test_get_documents_unauthorized_is_auth_failure(
+        self, client: DocsClient, mock_http_client: AsyncMock
+    ) -> None:
+        mock_response = Mock()
+        mock_response.status_code = 401
+        mock_http_client.get.return_value = mock_response
+
+        with pytest.raises(CredentialError):
+            await client.get_documents()
 
     async def test_get_documents_multiple_documents(self, client: DocsClient, mock_http_client: AsyncMock) -> None:
         """Test retrieval of multiple documents."""
