@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.core.authentication import get_current_user
+from app.core.authentication import get_active_user
 from app.core.config import settings
 from app.models.config import (
     ApplicationsConfig,
@@ -19,7 +19,7 @@ ALL_SERVICES = ["ai", "docs", "drive", "calendar", "task", "meet", "ocs", "grist
 
 
 @router.get("")
-async def get_config(current_user: Annotated[User, Depends(get_current_user)]) -> ConfigResponse:
+async def get_config(current_user: Annotated[User, Depends(get_active_user)]) -> ConfigResponse:
     """Get application configuration.
     Returns all enabled services.
     """

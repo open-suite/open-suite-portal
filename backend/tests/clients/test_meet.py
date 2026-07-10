@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 import httpx
 import pytest
 from app.clients.meet import MeetClient
-from app.exceptions import ExternalServiceError
+from app.exceptions import CredentialError, ExternalServiceError
 from app.models.room import Room
 
 
@@ -144,6 +144,16 @@ class TestMeetClient:
 
         assert "Meet" in str(exc_info.value)
         assert "Failed to fetch api/v1.0/rooms/ (status 404)" in str(exc_info.value)
+
+    async def test_get_rooms_unauthorized_is_auth_failure(
+        self, client: MeetClient, mock_http_client: AsyncMock
+    ) -> None:
+        mock_response = Mock()
+        mock_response.status_code = 401
+        mock_http_client.get.return_value = mock_response
+
+        with pytest.raises(CredentialError):
+            await client.get_rooms()
 
     async def test_get_rooms_multiple_rooms(self, client: MeetClient, mock_http_client: AsyncMock) -> None:
         """Test retrieval of multiple rooms."""

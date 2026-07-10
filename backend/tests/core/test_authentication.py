@@ -8,6 +8,7 @@ import pytest
 from app.core.authentication import (
     _needs_refresh,
     _refresh_token,
+    get_active_user,
     get_current_user,
     oauth2_scheme,
 )
@@ -52,6 +53,60 @@ class TestNeedsRefresh:
         """Test boundary condition at exactly 60 seconds."""
         boundary_time = int(time.time()) + 60  # Exactly 60 seconds
         assert _needs_refresh(boundary_time) is True
+
+
+class TestGetActiveUser:
+    @pytest.fixture
+    def active_request(self) -> MagicMock:
+        return MagicMock(spec=Request)
+
+    @pytest.fixture
+    def auth(self) -> AuthState:
+        return AuthState(
+            sub="user123",
+            user=User(name="Test User", email="test@example.com"),
+            access_token="access-token",
+            refresh_token="refresh-token",
+            expires_at=9999999999,
+        )
+
+    @pytest.mark.asyncio
+    async def test_active_introspection_allows_bootstrap(self, active_request: MagicMock, auth: AuthState) -> None:
+        response = MagicMock()
+        response.json.return_value = {"active": True}
+        response.raise_for_status.return_value = None
+        client = AsyncMock()
+        client.post.return_value = response
+
+        with (
+            patch("app.core.authentication.settings.OIDC_INTROSPECTION_ENDPOINT", "https://id/token/introspect"),
+            patch("app.core.authentication.session.get_auth", AsyncMock(return_value=auth)),
+            patch("app.core.authentication.http_client_dependency", AsyncMock(return_value=client)),
+        ):
+            result = await get_active_user(active_request, auth.user)
+
+        assert result == auth.user
+        client.post.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_inactive_introspection_clears_session(self, active_request: MagicMock, auth: AuthState) -> None:
+        response = MagicMock()
+        response.json.return_value = {"active": False}
+        response.raise_for_status.return_value = None
+        client = AsyncMock()
+        client.post.return_value = response
+        clear_auth = AsyncMock()
+
+        with (
+            patch("app.core.authentication.settings.OIDC_INTROSPECTION_ENDPOINT", "https://id/token/introspect"),
+            patch("app.core.authentication.session.get_auth", AsyncMock(return_value=auth)),
+            patch("app.core.authentication.session.clear_auth", clear_auth),
+            patch("app.core.authentication.http_client_dependency", AsyncMock(return_value=client)),
+            pytest.raises(CredentialError),
+        ):
+            await get_active_user(active_request, auth.user)
+
+        clear_auth.assert_awaited_once_with(active_request)
 
 
 class TestRefreshToken:
