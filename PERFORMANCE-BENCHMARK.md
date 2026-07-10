@@ -7,49 +7,44 @@ improvements remain visible in Git history.
 
 ## Latest summary
 
-**Candidate:** `3274aa2` (`ghcr.io/open-suite/portal-{frontend,api}:sha-3274aa2`)
+**Candidate:** `b13896c` (`ghcr.io/open-suite/portal-api:sha-b13896c`)
 
-**Change:** Render default dashboard before stored preferences hydrate
+**Change:** Cache final per-user/date Calendar results for 20 seconds
 
 **Target:** `https://bridge.demo.opensuite.online`
 
 **Captured:** 2026-07-11
 
-**Result:** Rejected; no KPI improved and the candidate was not shipped
+**Result:** Accepted; large repeat-navigation and widget improvements
 
 | KPI                          |      p50 |      p75 |      p95 |     Initial target |
 | ---------------------------- | -------: | -------: | -------: | -----------------: |
-| Portal shell                 |   161 ms |   226 ms |   267 ms |      <= 100 ms p75 |
-| Dashboard visible            |   554 ms |   566 ms |   605 ms |      <= 500 ms p75 |
-| Config response -> dashboard |   369 ms |   374 ms |   382 ms |      <= 100 ms p75 |
-| First widget data            | 2,075 ms | 2,124 ms | 2,179 ms |      <= 500 ms p75 |
-| All widgets settled          | 2,374 ms | 2,470 ms | 2,522 ms |    <= 1,000 ms p75 |
-| Global spinner exposure      |   377 ms |   399 ms |   420 ms |               0 ms |
-| Widget spinner exposure      | 1,858 ms | 1,924 ms | 1,981 ms |      0 ms blocking |
-| `/config`                    |    80 ms |    90 ms |   122 ms |      <= 250 ms p95 |
-| Calendar                     | 1,536 ms | 1,561 ms | 1,599 ms |    <= 1,000 ms p95 |
-| Docs                         | 1,551 ms | 1,598 ms | 1,641 ms | <= 250 ms p95 warm |
-| Meet                         | 1,550 ms | 1,617 ms | 1,666 ms | <= 250 ms p95 warm |
-| Files                        | 1,860 ms | 1,924 ms | 1,984 ms |    <= 1,000 ms p95 |
+| Portal shell                 |   209 ms |   226 ms |   328 ms |      <= 100 ms p75 |
+| Dashboard visible            |   582 ms |   599 ms |   689 ms |      <= 500 ms p75 |
+| Config response -> dashboard |   368 ms |   373 ms |   381 ms |      <= 100 ms p75 |
+| First widget data            |   676 ms |   740 ms | 1,277 ms |      <= 500 ms p75 |
+| All widgets settled          | 1,079 ms | 1,109 ms | 1,631 ms |    <= 1,000 ms p75 |
+| Global spinner exposure      |   377 ms |   387 ms |   399 ms |               0 ms |
+| Widget spinner exposure      |   489 ms |   510 ms |   960 ms |      0 ms blocking |
+| `/config`                    |    63 ms |    65 ms |    92 ms |      <= 250 ms p95 |
+| Calendar                     |    77 ms |    85 ms |   660 ms |    <= 1,000 ms p95 |
+| Docs                         |   132 ms |   146 ms |   712 ms | <= 250 ms p95 warm |
+| Meet                         |   132 ms |   148 ms |   724 ms | <= 250 ms p95 warm |
+| Files                        |   489 ms |   503 ms |   957 ms |    <= 1,000 ms p95 |
 
 ### Current interpretation
 
-- Rendering the default dashboard before reading stored preferences did not
-  change the roughly 370 ms config-to-dashboard gap. The parent `AppProvider`
-  does not mount the dashboard until `/config` completes, so the changed state
-  was not on the visible critical path.
-- Candidate p75 dashboard time regressed from 525 ms to 566 ms and shell timing
-  became noisier. It also risked briefly showing widgets a user had removed.
-  The runtime change was reverted before merge; the deployed release remains
-  the baseline behavior.
-- Calendar performs synchronous CalDAV I/O from an `async` route. Calendar,
-  Docs and Meet durations cluster together even though earlier isolated backend
-  measurements put warm Docs and Meet around 130-140 ms. The likely mechanism
-  is Calendar blocking the portal event loop while concurrent widget requests
-  wait. This must be confirmed by changing one variable and rerunning the same
-  benchmark.
-- The dashboard misses the warm 500 ms p75 target narrowly, while useful widget
-  data and all-widgets-ready miss by more than one second.
+- Calendar p75 fell 94%, and the removal of Calendar's blocking work from the
+  common hit path also cut Docs and Meet p75 by 91%, Files by 74%, first widget
+  data by 64%, all widgets by 55% and widget spinner exposure by 74%.
+- The benchmark crosses the 20-second cache TTL. Periodic misses therefore
+  remain visible at p95 instead of the report pretending every load is a hit.
+- Backend logs confirm the mechanism: Calendar hits complete in roughly 3-6 ms;
+  during a cold miss Calendar took 2.35-2.96 seconds and concurrent Docs/Meet
+  requests waited roughly the same amount. Calendar's synchronous I/O still
+  needs to move off the event loop so an expiry does not stall unrelated work.
+- Shell, dashboard and global-spinner timing did not improve. They remain gated
+  by the `/config` bootstrap and client hydration.
 
 ## Method
 
@@ -62,7 +57,7 @@ npx playwright install chromium
 BENCHMARK_USER=johndoe \
 BENCHMARK_PASS='<demo password>' \
 BENCHMARK_SAMPLES=20 \
-BENCHMARK_LABEL=baseline-c5cd5ae \
+BENCHMARK_LABEL='<release-or-candidate>' \
 BENCHMARK_OUTPUT=/tmp/open-suite-benchmark.json \
 npm run benchmark
 ```
@@ -73,7 +68,9 @@ Protocol:
 - Runner in the Netherlands against the shared Hetzner demo.
 - One fresh browser context and authenticated session per benchmark invocation.
 - One unmeasured reload warms browser and server caches.
-- Twenty measured warm reloads.
+- Twenty measured warm reloads with one second of pacing between samples. The
+  pacing avoids turning the browser test into an unrealistic reload flood and
+  deliberately lets short server caches expire during a run.
 - Resource Timing measures browser-observed API duration, including time queued
   behind other portal work. This intentionally represents user experience, not
   isolated handler execution time.
@@ -83,6 +80,27 @@ Protocol:
   be large relative to observed variance and repeat across run groups.
 
 ## History
+
+### 2. Accepted: cache final Calendar results - `b13896c` - 2026-07-11
+
+| KPI                 | Baseline p75 | Candidate p75 | Change |
+| ------------------- | -----------: | ------------: | -----: |
+| Portal shell        |       146 ms |        226 ms |   +55% |
+| Dashboard visible   |       525 ms |        599 ms |   +14% |
+| Config -> dashboard |       371 ms |        373 ms |    +1% |
+| First widget data   |     2,062 ms |        740 ms |   -64% |
+| All widgets settled |     2,446 ms |      1,109 ms |   -55% |
+| Global spinner      |       389 ms |        387 ms |     0% |
+| Widget spinner      |     1,932 ms |        510 ms |   -74% |
+| Config              |        63 ms |         65 ms |    +3% |
+| Calendar            |     1,528 ms |         85 ms |   -94% |
+| Docs                |     1,574 ms |        146 ms |   -91% |
+| Meet                |     1,580 ms |        148 ms |   -91% |
+| Files               |     1,933 ms |        503 ms |   -74% |
+
+Accepted. This is the first candidate to produce a large improvement outside
+normal run variance. Calendar p95 remains 660 ms because cache expiry is part
+of the paced sample set.
 
 ### 1. Rejected: render dashboard defaults early - `3274aa2` - 2026-07-11
 
