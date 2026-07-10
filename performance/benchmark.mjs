@@ -72,7 +72,9 @@ await page.addInitScript(() => {
     const now = performance.now();
     if (
       !state.marks.shell &&
-      visible("#ko-portal-header, .ant-layout-header, header")
+      visible(
+        "#ko-portal-header, .ant-layout-header, .portal-bootstrap-shell, header",
+      )
     ) {
       state.marks.shell = now;
     }
