@@ -12,11 +12,13 @@ from icalendar import Event as IEvent
 
 @pytest.fixture(autouse=True)
 def _clear_calendar_cache() -> None:
-    # The discovery cache is module-level and keyed by token; tests share a
-    # token, so clear it between them to avoid cross-test bleed.
+    # The caches are module-level and keyed by token; tests share a token, so
+    # clear them between tests to avoid cross-test bleed.
     caldav_module._CALENDAR_URL_CACHE.clear()
+    caldav_module._CALENDAR_RESULT_CACHE.clear()
     yield
     caldav_module._CALENDAR_URL_CACHE.clear()
+    caldav_module._CALENDAR_RESULT_CACHE.clear()
 
 
 MEET_BASE = "https://meet.example.com"
@@ -121,4 +123,37 @@ class TestDiscoveryCache:
         client.get_calendars(datetime(2099, 1, 1))
         client.token = "other-token"  # a refreshed session rotates the token
         client.get_calendars(datetime(2099, 1, 1))
+        assert client.client.principal.call_count == 2
+
+
+class TestResultCache:
+    def test_second_load_skips_calendar_search(self) -> None:
+        event = _build_event()
+        client = _make_client(event)
+        calendar = client.client.principal.return_value.calendars.return_value[0]
+
+        first = client.get_calendars(datetime(2099, 1, 1))
+        second = client.get_calendars(datetime(2099, 1, 1))
+
+        assert second == first
+        calendar.search.assert_called_once()
+
+    def test_different_date_is_not_reused(self) -> None:
+        event = _build_event()
+        client = _make_client(event)
+        rebuilt = MagicMock()
+        rebuilt.search.return_value = [event]
+        with patch("app.clients.caldav.DavCalendar", return_value=rebuilt):
+            client.get_calendars(datetime(2099, 1, 1))
+            client.get_calendars(datetime(2099, 1, 2))
+
+        assert rebuilt.search.call_count == 1
+
+    def test_refreshed_token_is_not_reused(self) -> None:
+        event = _build_event()
+        client = _make_client(event)
+        client.get_calendars(datetime(2099, 1, 1))
+        client.token = "other-token"
+        client.get_calendars(datetime(2099, 1, 1))
+
         assert client.client.principal.call_count == 2

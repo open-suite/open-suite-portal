@@ -6,6 +6,7 @@ const baseUrl =
 const username = process.env.BENCHMARK_USER;
 const password = process.env.BENCHMARK_PASS;
 const samples = Number(process.env.BENCHMARK_SAMPLES || 20);
+const pacingMs = Number(process.env.BENCHMARK_PACING_MS || 1000);
 const output = process.env.BENCHMARK_OUTPUT || "benchmark-result.json";
 const label = process.env.BENCHMARK_LABEL || "unlabelled";
 
@@ -228,6 +229,7 @@ for (let index = 0; index < samples; index += 1) {
   console.log(
     `sample ${index + 1}/${samples}: calendar=${Math.round(measured.metrics.calendar_ms)}ms dashboard=${Math.round(measured.metrics.dashboard_ms)}ms`,
   );
+  if (index < samples - 1 && pacingMs > 0) await page.waitForTimeout(pacingMs);
 }
 
 const result = {
@@ -243,6 +245,7 @@ const result = {
     cache: "warm browser and server caches after authenticated bootstrap",
   },
   samples,
+  pacingMs,
   summary: summarize(runs),
   runs,
 };
