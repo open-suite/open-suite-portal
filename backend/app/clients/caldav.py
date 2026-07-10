@@ -23,6 +23,16 @@ UPCOMING_DAYS = 3
 _CALENDAR_URL_CACHE: dict[str, tuple[list[str], float]] = {}
 _CALENDAR_CACHE_TTL_SECONDS = 300
 
+# The dashboard refreshes every 30 seconds. Keep the fully parsed result just
+# long enough for repeat navigation/reloads to avoid the sequential CalDAV
+# searches, while ensuring the scheduled refresh goes back to Nextcloud.
+_CALENDAR_RESULT_CACHE: dict[tuple[str, date], tuple[list[Calendar], float]] = {}
+_CALENDAR_RESULT_CACHE_TTL_SECONDS = 20
+
+
+def _token_cache_key(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
+
 
 class CaldavClient:
     def __init__(self, base_url: str, token: str) -> None:
@@ -44,7 +54,7 @@ class CaldavClient:
     def _calendars(self):  # noqa: ANN202 — caldav.Calendar is untyped (see file header)
         """Discovered calendars for this user, cached by token to skip the
         principal + calendar-list round trips on repeat dashboard loads."""
-        key = hashlib.sha256(self.token.encode("utf-8")).hexdigest()[:32]
+        key = _token_cache_key(self.token)
         cached = _CALENDAR_URL_CACHE.get(key)
         now = time.time()
         if cached is not None and now < cached[1]:
@@ -79,6 +89,13 @@ class CaldavClient:
         return None
 
     def get_calendars(self, check_date: date) -> list[Calendar]:
+        normalized_date = check_date.date() if isinstance(check_date, datetime) else check_date
+        cache_key = (_token_cache_key(self.token), normalized_date)
+        now_timestamp = time.time()
+        cached = _CALENDAR_RESULT_CACHE.get(cache_key)
+        if cached is not None and now_timestamp < cached[1]:
+            return cached[0]
+
         calendars = self._calendars()
 
         events_today: list[Calendar] = []
@@ -114,6 +131,13 @@ class CaldavClient:
                     )
 
         events_today.sort(key=lambda e: self._sort_key(e.start))
+        if len(_CALENDAR_RESULT_CACHE) > 1024:
+            for key in [key for key, (_, expires) in _CALENDAR_RESULT_CACHE.items() if expires <= now_timestamp]:
+                del _CALENDAR_RESULT_CACHE[key]
+        _CALENDAR_RESULT_CACHE[cache_key] = (
+            events_today,
+            now_timestamp + _CALENDAR_RESULT_CACHE_TTL_SECONDS,
+        )
         return events_today
 
     @staticmethod
