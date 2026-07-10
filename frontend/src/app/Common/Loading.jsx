@@ -5,12 +5,6 @@ function Loading() {
       aria-busy="true"
       aria-label="Loading Open Suite"
     >
-      <header className="portal-bootstrap-header">
-        <span className="portal-bootstrap-mark" aria-hidden="true">
-          O
-        </span>
-        <strong>Open Suite</strong>
-      </header>
       <main className="portal-bootstrap-content" aria-hidden="true">
         <div className="portal-bootstrap-action" />
         <div className="portal-bootstrap-grid">

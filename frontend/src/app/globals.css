@@ -548,30 +548,8 @@ footer {
 }
 
 .portal-bootstrap-shell {
-  min-height: 100vh;
+  min-height: calc(100vh - 48px);
   background: var(--layout-background);
-}
-
-.portal-bootstrap-header {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 40px;
-  padding: 0 50px;
-  background: var(--header-background);
-  color: var(--header-text-color);
-}
-
-.portal-bootstrap-mark {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: #f26649;
-  color: #0f2135;
-  font-weight: 800;
 }
 
 .portal-bootstrap-content {
@@ -630,10 +608,6 @@ footer {
 }
 
 @media (max-width: 767px) {
-  .portal-bootstrap-header {
-    padding: 0 20px;
-  }
-
   .portal-bootstrap-grid {
     grid-template-columns: 1fr;
   }
