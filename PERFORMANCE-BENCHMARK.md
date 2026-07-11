@@ -7,15 +7,16 @@ improvements remain visible in Git history.
 
 ## Latest summary
 
-**Candidate:** `1063474` (`ghcr.io/open-suite/portal-{frontend,api}:sha-1063474`)
+**Current accepted build:** `1063474`
+(`ghcr.io/open-suite/portal-{frontend,api}:sha-1063474`)
 
-**Change:** Move synchronous CalDAV calls off the async event loop
+**Latest experiment:** Distribution header preconnect candidate `63976a6`
 
 **Target:** `https://bridge.demo.opensuite.online`
 
 **Captured:** 2026-07-11
 
-**Result:** Accepted; Calendar misses no longer stall unrelated widgets
+**Result:** Preconnect rejected; current accepted portal KPIs unchanged
 
 | KPI                          |      p50 |      p75 |      p95 |     Initial target |
 | ---------------------------- | -------: | -------: | -------: | -----------------: |
@@ -32,6 +33,18 @@ improvements remain visible in Git history.
 | Meet                         |   122 ms |   130 ms |   164 ms | <= 250 ms p95 warm |
 | Files                        |   447 ms |   467 ms |   502 ms |    <= 1,000 ms p95 |
 
+### Latest app-switch result
+
+The shared-header preconnect candidate was measured separately because it
+cannot affect a same-origin dashboard reload.
+
+| KPI                        |     Baseline p50/p75/p95 |    Candidate p50/p75/p95 | Result          |
+| -------------------------- | -----------------------: | -----------------------: | --------------- |
+| Office -> Documents target | 3,480 / 4,066 / 4,720 ms | 2,879 / 4,053 / 4,319 ms | p75 flat        |
+| First Nextcloud connection |       110 / 116 / 118 ms |       111 / 117 / 132 ms | no reuse        |
+| TLS                        |          57 / 59 / 66 ms |          59 / 61 / 79 ms | no reuse        |
+| Preconnect hint present    |               0 / 0 / 0% |         100 / 100 / 100% | mechanism fired |
+
 ### Current interpretation
 
 - A Calendar cache miss reached 3.54 seconds in this run, but concurrent Docs
@@ -45,6 +58,9 @@ improvements remain visible in Git history.
 - One navigation attempt timed out and was discarded before collecting the 20
   successful samples. The harness now reports discarded attempts explicitly
   instead of failing late or silently shortening the sample set.
+- The shared-header preconnect hint was present before every candidate click,
+  but connection and TLS costs did not fall. Page p75 moved by only 13 ms inside
+  a roughly two-second baseline range. The speculative runtime work was reverted.
 
 ## Method
 
@@ -60,6 +76,17 @@ BENCHMARK_SAMPLES=20 \
 BENCHMARK_LABEL='<release-or-candidate>' \
 BENCHMARK_OUTPUT=/tmp/open-suite-benchmark.json \
 npm run benchmark
+```
+
+Cold app switching uses `performance/app-switch.mjs`:
+
+```bash
+BENCHMARK_USER=johndoe \
+BENCHMARK_PASS='<demo password>' \
+BENCHMARK_SAMPLES=10 \
+BENCHMARK_LABEL='<release-or-candidate>' \
+BENCHMARK_OUTPUT=/tmp/open-suite-app-switch.json \
+npm run benchmark:app-switch
 ```
 
 Protocol:
@@ -78,8 +105,26 @@ Protocol:
   committed because it contains request paths and high-volume sample detail.
 - The shared demo can experience unrelated load. A claimed improvement should
   be large relative to observed variance and repeat across run groups.
+- The app-switch journey creates a fresh browser context per sample with the
+  same established portal/Keycloak SSO state, opens the visible shared Office
+  menu, gives Documents 200 ms of hover intent, and waits for Nextcloud
+  Documents `DOMContentLoaded`. It reports the first Nextcloud TCP/TLS timing.
 
 ## History
+
+### 5. Rejected: shared-header hover preconnect - `63976a6` - 2026-07-11
+
+| KPI                        | Baseline p75 | Candidate p75 |         Change |
+| -------------------------- | -----------: | ------------: | -------------: |
+| Office -> Documents target |     4,066 ms |      4,053 ms |             0% |
+| First Nextcloud connection |       116 ms |        117 ms |            +1% |
+| TLS                        |        59 ms |         61 ms |            +3% |
+| Preconnect hint present    |           0% |          100% | mechanism only |
+
+Rejected. Ten fresh-context journeys showed no socket reuse or meaningful page
+p75 change. A five-sample credentialed-hint variant also retained 109 ms p75
+connection and 57 ms TLS work. The runtime change was reverted in the
+distribution PR rather than adding speculative authenticated connections.
 
 ### 4. Accepted: offload blocking CalDAV I/O - `1063474` - 2026-07-11
 
