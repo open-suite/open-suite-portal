@@ -113,8 +113,6 @@
   },
   "Chat": {
     "title": "Chat",
-    "connectPrompt": "Verbind om je ongelezen kanalen te zien.",
-    "connect": "Verbind met chat",
     "noUnread": "Geen ongelezen berichten",
     "untitled": "(naamloos)",
     "remove": "Widget verwijderen"

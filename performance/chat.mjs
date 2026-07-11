@@ -124,17 +124,19 @@ const matrixSession = await page.evaluate(() =>
   localStorage.getItem("matrix_session"),
 );
 if (!matrixSession) {
-  const domain = new URL(baseUrl).hostname.replace(/^[^.]+\./, "");
-  const callback = `${baseUrl}/matrix-callback`;
-  const matrixLogin =
-    `https://matrix.${domain}/_matrix/client/v3/login/sso/redirect/oidc-mijnbureau` +
-    `?redirectUrl=${encodeURIComponent(callback)}`;
-  await page.goto(matrixLogin, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const connected = await page
+      .evaluate(() => localStorage.getItem("matrix_session") !== null)
+      .catch(() => false);
+    if (connected) break;
+    await page.waitForTimeout(100);
+  }
+  const connected = await page.evaluate(
     () => localStorage.getItem("matrix_session") !== null,
-    null,
-    { timeout: 30_000 },
   );
+  if (!connected)
+    throw new Error("Chat did not establish Matrix SSO automatically");
   await dashboard.waitFor({ state: "visible", timeout: 30_000 });
 }
 

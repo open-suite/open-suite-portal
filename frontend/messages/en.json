@@ -113,8 +113,6 @@
   },
   "Chat": {
     "title": "Chat",
-    "connectPrompt": "Connect to see your unread channels.",
-    "connect": "Connect to chat",
     "noUnread": "No unread messages",
     "untitled": "(unnamed room)",
     "remove": "Remove widget"
