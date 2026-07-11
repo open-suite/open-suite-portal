@@ -7,8 +7,8 @@ improvements remain visible in Git history.
 
 ## Latest summary
 
-**Current accepted build:** `1063474`
-(`ghcr.io/open-suite/portal-{frontend,api}:sha-1063474`)
+**Current accepted build:** `30748ee`
+(`ghcr.io/open-suite/portal-{frontend,api}:sha-30748ee`)
 
 **Latest experiment:** Distribution header preconnect candidate `63976a6`
 
@@ -20,18 +20,18 @@ improvements remain visible in Git history.
 
 | KPI                          |      p50 |      p75 |      p95 |     Initial target |
 | ---------------------------- | -------: | -------: | -------: | -----------------: |
-| Portal shell                 |   203 ms |   213 ms |   260 ms |      <= 100 ms p75 |
-| Dashboard visible            |   567 ms |   586 ms |   735 ms |      <= 500 ms p75 |
-| Config response -> dashboard |   382 ms |   385 ms |   390 ms |      <= 100 ms p75 |
-| First widget data            |   641 ms |   679 ms |   864 ms |      <= 500 ms p75 |
-| All widgets settled          | 1,030 ms | 1,100 ms | 1,403 ms |    <= 1,000 ms p75 |
+| Portal shell                 |   190 ms |   209 ms |   212 ms |      <= 100 ms p75 |
+| Dashboard visible            |   565 ms |   568 ms |   571 ms |      <= 500 ms p75 |
+| Config response -> dashboard |   379 ms |   380 ms |   382 ms |      <= 100 ms p75 |
+| First widget data            |   641 ms |   645 ms |   704 ms |      <= 500 ms p75 |
+| All widgets settled          | 1,020 ms | 1,034 ms | 1,295 ms |    <= 1,000 ms p75 |
 | Global spinner exposure      |     0 ms |     0 ms |     0 ms |               0 ms |
-| Widget spinner exposure      |   454 ms |   495 ms |   821 ms |      0 ms blocking |
-| `/config`                    |    62 ms |    69 ms |    95 ms |      <= 250 ms p95 |
-| Calendar                     |    67 ms |    77 ms |   815 ms |    <= 1,000 ms p95 |
-| Docs                         |   125 ms |   133 ms |   139 ms | <= 250 ms p95 warm |
-| Meet                         |   122 ms |   130 ms |   164 ms | <= 250 ms p95 warm |
-| Files                        |   447 ms |   467 ms |   502 ms |    <= 1,000 ms p95 |
+| Widget spinner exposure      |   475 ms |   484 ms |   736 ms |      0 ms blocking |
+| `/config`                    |    61 ms |    62 ms |    68 ms |      <= 250 ms p95 |
+| Calendar                     |    67 ms |    68 ms |   731 ms |    <= 1,000 ms p95 |
+| Docs                         |   121 ms |   128 ms |   131 ms | <= 250 ms p95 warm |
+| Meet                         |   125 ms |   138 ms |   144 ms | <= 250 ms p95 warm |
+| Files                        |   466 ms |   474 ms |   534 ms |    <= 1,000 ms p95 |
 
 ### Latest app-switch result
 
@@ -47,17 +47,16 @@ cannot affect a same-origin dashboard reload.
 
 ### Current interpretation
 
-- A Calendar cache miss reached 3.54 seconds in this run, but concurrent Docs
-  and Meet maximums stayed below 267 ms and Files below 632 ms. This directly
-  confirms that the event loop is no longer held by synchronous CalDAV I/O.
+- Two Calendar cache-expiry misses reached 731-764 ms in the final run, while
+  Docs max stayed at 133 ms, Meet at 176 ms and Files at 540 ms. This confirms
+  that the event loop is no longer held by synchronous CalDAV I/O.
 - Against the previous accepted build, p95 improved 78% for Docs, 75% for Meet,
   48% for Files, 16% for widget-spinner exposure and 9% for all widgets. Calendar
   itself is intentionally not made faster by thread offloading.
 - Median and p75 dashboard timings moved by roughly normal shared-demo variance.
   Acceptance is based on isolating the tail, not claiming those as gains.
-- One navigation attempt timed out and was discarded before collecting the 20
-  successful samples. The harness now reports discarded attempts explicitly
-  instead of failing late or silently shortening the sample set.
+- The final deployed run collected all 20 samples with zero discarded attempts.
+  The harness still reports discarded attempts explicitly when they occur.
 - The shared-header preconnect hint was present before every candidate click,
   but connection and TLS costs did not fall. Page p75 moved by only 13 ms inside
   a roughly two-second baseline range. The speculative runtime work was reverted.
@@ -111,6 +110,27 @@ Protocol:
   Documents `DOMContentLoaded`. It reports the first Nextcloud TCP/TLS timing.
 
 ## History
+
+### 6. Final deployed release - `30748ee` - 2026-07-11
+
+| KPI                 |      p50 |      p75 |      p95 |
+| ------------------- | -------: | -------: | -------: |
+| Portal shell        |   190 ms |   209 ms |   212 ms |
+| Dashboard visible   |   565 ms |   568 ms |   571 ms |
+| Config -> dashboard |   379 ms |   380 ms |   382 ms |
+| First widget data   |   641 ms |   645 ms |   704 ms |
+| All widgets settled | 1,020 ms | 1,034 ms | 1,295 ms |
+| Global spinner      |     0 ms |     0 ms |     0 ms |
+| Widget spinner      |   475 ms |   484 ms |   736 ms |
+| Config              |    61 ms |    62 ms |    68 ms |
+| Calendar            |    67 ms |    68 ms |   731 ms |
+| Docs                |   121 ms |   128 ms |   131 ms |
+| Meet                |   125 ms |   138 ms |   144 ms |
+| Files               |   466 ms |   474 ms |   534 ms |
+
+This is the final accepted portal image deployed on the demo. The run collected
+20 paced warm samples with no discarded attempts and crossed the Calendar cache
+TTL twice.
 
 ### 5. Rejected: shared-header hover preconnect - `63976a6` - 2026-07-11
 
