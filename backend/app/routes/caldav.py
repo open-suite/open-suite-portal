@@ -2,6 +2,7 @@ import logging
 from datetime import date, datetime
 
 from fastapi import APIRouter, Request
+from starlette.concurrency import run_in_threadpool
 
 from app.clients.caldav import CaldavClient
 from app.core.config import settings
@@ -33,8 +34,9 @@ async def caldav_calendar(
     """Get calendar events for a specific date."""
     client = await get_caldav_client(request)
 
-    calendar_items: list[Calendar] = client.get_calendars(
-        check_date=datetime.combine(calendar_date, datetime.min.time())
+    calendar_items: list[Calendar] = await run_in_threadpool(
+        client.get_calendars,
+        check_date=datetime.combine(calendar_date, datetime.min.time()),
     )
 
     return calendar_items
@@ -44,4 +46,4 @@ async def caldav_calendar(
 async def caldav_tasks(request: Request) -> list[Task]:
     """Get tasks from CalDAV service."""
     client = await get_caldav_client(request)
-    return client.get_tasks()
+    return await run_in_threadpool(client.get_tasks)
