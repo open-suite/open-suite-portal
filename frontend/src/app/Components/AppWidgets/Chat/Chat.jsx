@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, List, Button, Badge, Empty, Flex, Dropdown } from "antd";
+import { Card, List, Badge, Empty, Dropdown } from "antd";
 import {
   MessageOutlined,
-  LoginOutlined,
   SettingOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
@@ -24,34 +23,23 @@ function Chat() {
   const t = useTranslations("Chat");
   const dashboard = useDashboard();
   const [rooms, setRooms] = useState(() => getCachedUnreadRooms() ?? []);
-  const [connected, setConnected] = useState(() => !!getMatrixSession());
 
   useEffect(() => {
-    if (!getMatrixSession()) return;
+    if (!getMatrixSession()) {
+      startMatrixLogin();
+      return;
+    }
     const controller = new AbortController();
     runUnreadSync({ signal: controller.signal, onRooms: setRooms }).catch(
       (e) => {
-        if (e.code === 401) setConnected(false);
+        if (e.code === 401) startMatrixLogin();
       },
     );
     return () => controller.abort();
   }, []);
 
   let body;
-  if (!connected) {
-    body = (
-      <Flex vertical align="center" gap="middle" style={{ padding: "16px 0" }}>
-        <span>{t("connectPrompt")}</span>
-        <Button
-          type="primary"
-          icon={<LoginOutlined />}
-          onClick={startMatrixLogin}
-        >
-          {t("connect")}
-        </Button>
-      </Flex>
-    );
-  } else if (rooms.length === 0) {
+  if (rooms.length === 0) {
     body = (
       <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("noUnread")} />
     );

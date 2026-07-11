@@ -86,9 +86,10 @@ function cacheUnreadRooms(session, rooms) {
 // /matrix-callback with a loginToken.
 export function startMatrixLogin() {
   const redirectUrl = `${window.location.origin}/matrix-callback`;
-  window.location.href =
+  const loginUrl =
     `${MATRIX_HOMESERVER}/_matrix/client/v3/login/sso/redirect/${MATRIX_IDP}` +
     `?redirectUrl=${encodeURIComponent(redirectUrl)}`;
+  window.location.replace(loginUrl);
 }
 
 // Exchange the one-time loginToken from the SSO redirect for a Matrix token.
@@ -203,7 +204,7 @@ const sleep = (ms, signal) =>
 // Standard Matrix sync loop: one initial sync to baseline, then long-poll with
 // the since cursor so the server pushes changes as they happen. Calls
 // onRooms(list) after every sync. Runs until `signal` is aborted. Throws with
-// code 401 if the session is no longer valid (caller should prompt reconnect).
+// code 401 if the session is no longer valid (caller should restart SSO).
 export async function runUnreadSync({ signal, onRooms }) {
   const session = getMatrixSession();
   if (!session) return;
