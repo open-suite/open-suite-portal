@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, List, Button, Badge, Empty, Flex, Spin, Dropdown } from "antd";
+import { Card, List, Button, Badge, Empty, Flex, Dropdown } from "antd";
 import {
   MessageOutlined,
   LoginOutlined,
@@ -14,6 +14,7 @@ import {
   runUnreadSync,
   startMatrixLogin,
   getMatrixSession,
+  getCachedUnreadRooms,
   MATRIX_ELEMENT,
 } from "@/lib/matrix";
 
@@ -22,8 +23,7 @@ import {
 function Chat() {
   const t = useTranslations("Chat");
   const dashboard = useDashboard();
-  // rooms: null = still loading; [] = connected, nothing unread.
-  const [rooms, setRooms] = useState(null);
+  const [rooms, setRooms] = useState(() => getCachedUnreadRooms() ?? []);
   const [connected, setConnected] = useState(() => !!getMatrixSession());
 
   useEffect(() => {
@@ -49,12 +49,6 @@ function Chat() {
         >
           {t("connect")}
         </Button>
-      </Flex>
-    );
-  } else if (rooms === null) {
-    body = (
-      <Flex className="widget-loading" justify="center" align="center">
-        <Spin size="large" />
       </Flex>
     );
   } else if (rooms.length === 0) {

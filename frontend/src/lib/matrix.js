@@ -23,6 +23,7 @@ export const MATRIX_ELEMENT = KO_BASE_DOMAIN
 export const MATRIX_IDP = "oidc-mijnbureau";
 
 const SESSION_KEY = "matrix_session";
+const UNREAD_CACHE_KEY = "matrix_unread_cache_v1";
 
 export function getMatrixSession() {
   try {
@@ -34,6 +35,50 @@ export function getMatrixSession() {
 
 export function clearMatrixSession() {
   localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(UNREAD_CACHE_KEY);
+}
+
+export function getCachedUnreadRooms(session = getMatrixSession()) {
+  if (!session?.userId) return null;
+  try {
+    const cached = JSON.parse(localStorage.getItem(UNREAD_CACHE_KEY));
+    if (cached?.userId !== session.userId || !Array.isArray(cached.rooms)) {
+      return null;
+    }
+    return cached.rooms
+      .filter(
+        (room) =>
+          typeof room?.roomId === "string" &&
+          typeof room?.name === "string" &&
+          Number.isFinite(room?.unread) &&
+          Number.isFinite(room?.highlight),
+      )
+      .map((room) => ({
+        ...room,
+        url: `${MATRIX_ELEMENT}/#/room/${room.roomId}`,
+      }));
+  } catch {
+    return null;
+  }
+}
+
+function cacheUnreadRooms(session, rooms) {
+  try {
+    localStorage.setItem(
+      UNREAD_CACHE_KEY,
+      JSON.stringify({
+        userId: session.userId,
+        rooms: rooms.map(({ roomId, name, unread, highlight }) => ({
+          roomId,
+          name,
+          unread,
+          highlight,
+        })),
+      }),
+    );
+  } catch {
+    // Storage can be unavailable; live sync remains the source of truth.
+  }
 }
 
 // Full-page redirect into Synapse's SSO flow. Since the user already has a
@@ -59,6 +104,7 @@ export async function exchangeLoginToken(loginToken) {
   });
   if (!res.ok) throw new Error(`Matrix login failed (${res.status})`);
   const data = await res.json();
+  localStorage.removeItem(UNREAD_CACHE_KEY);
   localStorage.setItem(
     SESSION_KEY,
     JSON.stringify({
@@ -198,6 +244,8 @@ export async function runUnreadSync({ signal, onRooms }) {
     const data = await res.json();
     since = data.next_batch;
     applySync(rooms, data, session.userId);
-    onRooms(unreadList(rooms));
+    const unread = unreadList(rooms);
+    cacheUnreadRooms(session, unread);
+    onRooms(unread);
   }
 }

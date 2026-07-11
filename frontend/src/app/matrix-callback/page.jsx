@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Result, Spin } from "antd";
+import { MessageOutlined } from "@ant-design/icons";
+import { Result } from "antd";
 import { exchangeLoginToken } from "@/lib/matrix";
 
 // Lands here after Synapse's SSO redirect with ?loginToken=… , exchanges it for
@@ -30,9 +31,5 @@ export default function MatrixCallback() {
       />
     );
   }
-  return (
-    <div style={{ display: "flex", justifyContent: "center", marginTop: 80 }}>
-      <Spin size="large" tip="Connecting to chat…" />
-    </div>
-  );
+  return <Result icon={<MessageOutlined />} title="Connecting to chat…" />;
 }
