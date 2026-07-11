@@ -7,43 +7,44 @@ improvements remain visible in Git history.
 
 ## Latest summary
 
-**Candidate:** `961a122` (`ghcr.io/open-suite/portal-{frontend,api}:sha-961a122`)
+**Candidate:** `1063474` (`ghcr.io/open-suite/portal-{frontend,api}:sha-1063474`)
 
-**Change:** Replace the config bootstrap spinner with a stable shell
+**Change:** Move synchronous CalDAV calls off the async event loop
 
 **Target:** `https://bridge.demo.opensuite.online`
 
 **Captured:** 2026-07-11
 
-**Result:** Accepted; global spinner exposure eliminated
+**Result:** Accepted; Calendar misses no longer stall unrelated widgets
 
 | KPI                          |      p50 |      p75 |      p95 |     Initial target |
 | ---------------------------- | -------: | -------: | -------: | -----------------: |
-| Portal shell                 |   205 ms |   211 ms |   227 ms |      <= 100 ms p75 |
-| Dashboard visible            |   554 ms |   559 ms |   583 ms |      <= 500 ms p75 |
-| Config response -> dashboard |   365 ms |   373 ms |   383 ms |      <= 100 ms p75 |
-| First widget data            |   625 ms |   645 ms | 1,170 ms |      <= 500 ms p75 |
-| All widgets settled          | 1,012 ms | 1,038 ms | 1,538 ms |    <= 1,000 ms p75 |
+| Portal shell                 |   203 ms |   213 ms |   260 ms |      <= 100 ms p75 |
+| Dashboard visible            |   567 ms |   586 ms |   735 ms |      <= 500 ms p75 |
+| Config response -> dashboard |   382 ms |   385 ms |   390 ms |      <= 100 ms p75 |
+| First widget data            |   641 ms |   679 ms |   864 ms |      <= 500 ms p75 |
+| All widgets settled          | 1,030 ms | 1,100 ms | 1,403 ms |    <= 1,000 ms p75 |
 | Global spinner exposure      |     0 ms |     0 ms |     0 ms |               0 ms |
-| Widget spinner exposure      |   465 ms |   496 ms |   983 ms |      0 ms blocking |
-| `/config`                    |    63 ms |    65 ms |    71 ms |      <= 250 ms p95 |
-| Calendar                     |    66 ms |    68 ms |   593 ms |    <= 1,000 ms p95 |
-| Docs                         |   120 ms |   131 ms |   641 ms | <= 250 ms p95 warm |
-| Meet                         |   120 ms |   133 ms |   660 ms | <= 250 ms p95 warm |
-| Files                        |   466 ms |   491 ms |   971 ms |    <= 1,000 ms p95 |
+| Widget spinner exposure      |   454 ms |   495 ms |   821 ms |      0 ms blocking |
+| `/config`                    |    62 ms |    69 ms |    95 ms |      <= 250 ms p95 |
+| Calendar                     |    67 ms |    77 ms |   815 ms |    <= 1,000 ms p95 |
+| Docs                         |   125 ms |   133 ms |   139 ms | <= 250 ms p95 warm |
+| Meet                         |   122 ms |   130 ms |   164 ms | <= 250 ms p95 warm |
+| Files                        |   447 ms |   467 ms |   502 ms |    <= 1,000 ms p95 |
 
 ### Current interpretation
 
-- The config request still validates the active portal session before mounting
-  dashboard controls. Logged-out users retain the immediate 401 redirect path.
-- The wait state is now a fixed, noninteractive Open Suite shell. Global spinner
-  exposure fell from 387 ms p75 to zero without weakening authentication.
-- Compared with the previous accepted build, shell p75 improved 7%, dashboard
-  7%, first widget data 13%, Docs 10%, Meet 10% and all widgets 6%. These smaller
-  timing changes may include normal shared-demo variance; the zero-spinner
-  result is the deterministic acceptance signal.
-- Cache-expiry misses remain visible at p95. Calendar's synchronous I/O still
-  needs to move off the event loop so expiry cannot stall unrelated work.
+- A Calendar cache miss reached 3.54 seconds in this run, but concurrent Docs
+  and Meet maximums stayed below 267 ms and Files below 632 ms. This directly
+  confirms that the event loop is no longer held by synchronous CalDAV I/O.
+- Against the previous accepted build, p95 improved 78% for Docs, 75% for Meet,
+  48% for Files, 16% for widget-spinner exposure and 9% for all widgets. Calendar
+  itself is intentionally not made faster by thread offloading.
+- Median and p75 dashboard timings moved by roughly normal shared-demo variance.
+  Acceptance is based on isolating the tail, not claiming those as gains.
+- One navigation attempt timed out and was discarded before collecting the 20
+  successful samples. The harness now reports discarded attempts explicitly
+  instead of failing late or silently shortening the sample set.
 
 ## Method
 
@@ -79,6 +80,26 @@ Protocol:
   be large relative to observed variance and repeat across run groups.
 
 ## History
+
+### 4. Accepted: offload blocking CalDAV I/O - `1063474` - 2026-07-11
+
+| KPI                 | Previous p95 | Candidate p95 | Change |
+| ------------------- | -----------: | ------------: | -----: |
+| Portal shell        |       227 ms |        260 ms |   +15% |
+| Dashboard visible   |       583 ms |        735 ms |   +26% |
+| Config -> dashboard |       383 ms |        390 ms |    +2% |
+| First widget data   |     1,170 ms |        864 ms |   -26% |
+| All widgets settled |     1,538 ms |      1,403 ms |    -9% |
+| Global spinner      |         0 ms |          0 ms |     0% |
+| Widget spinner      |       983 ms |        821 ms |   -16% |
+| Config              |        71 ms |         95 ms |   +34% |
+| Calendar            |       593 ms |        815 ms |   +37% |
+| Docs                |       641 ms |        139 ms |   -78% |
+| Meet                |       660 ms |        164 ms |   -75% |
+| Files               |       971 ms |        502 ms |   -48% |
+
+Accepted. The candidate isolates unrelated request latency during a Calendar
+miss. Its 3.54-second Calendar maximum did not propagate to Docs, Meet or Files.
 
 ### 3. Accepted: stable config bootstrap shell - `961a122` - 2026-07-11
 

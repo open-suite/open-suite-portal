@@ -148,26 +148,37 @@ await page.waitForFunction(
 );
 
 const runs = [];
-for (let index = 0; index < samples; index += 1) {
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await dashboard.waitFor({ state: "visible", timeout: 30_000 });
-  await page.waitForFunction(
-    (fragments) => {
-      const names = performance
-        .getEntriesByType("resource")
-        .map((entry) => entry.name);
-      return fragments.every((fragment) =>
-        names.some((name) => name.includes(fragment)),
-      );
-    },
-    requiredApiFragments,
-    { timeout: 30_000 },
-  );
-  await page.waitForFunction(
-    () => !document.querySelector(".custom-list-loading .ant-spin"),
-    null,
-    { timeout: 30_000 },
-  );
+let attempts = 0;
+const maxAttempts = samples + 5;
+while (runs.length < samples && attempts < maxAttempts) {
+  attempts += 1;
+  try {
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await dashboard.waitFor({ state: "visible", timeout: 30_000 });
+    await page.waitForFunction(
+      (fragments) => {
+        const names = performance
+          .getEntriesByType("resource")
+          .map((entry) => entry.name);
+        return fragments.every((fragment) =>
+          names.some((name) => name.includes(fragment)),
+        );
+      },
+      requiredApiFragments,
+      { timeout: 30_000 },
+    );
+    await page.waitForFunction(
+      () => !document.querySelector(".custom-list-loading .ant-spin"),
+      null,
+      { timeout: 30_000 },
+    );
+  } catch (error) {
+    console.warn(
+      `discarded attempt ${attempts}: ${error.message.split("\n")[0]}`,
+    );
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+    continue;
+  }
 
   const measured = await page.evaluate((fragments) => {
     const state = window.__openSuiteBenchmark;
@@ -227,11 +238,18 @@ for (let index = 0; index < samples; index += 1) {
         })),
     };
   }, requiredApiFragments);
-  runs.push({ index: index + 1, ...measured });
+  runs.push({ index: runs.length + 1, ...measured });
   console.log(
-    `sample ${index + 1}/${samples}: calendar=${Math.round(measured.metrics.calendar_ms)}ms dashboard=${Math.round(measured.metrics.dashboard_ms)}ms`,
+    `sample ${runs.length}/${samples}: calendar=${Math.round(measured.metrics.calendar_ms)}ms dashboard=${Math.round(measured.metrics.dashboard_ms)}ms`,
   );
-  if (index < samples - 1 && pacingMs > 0) await page.waitForTimeout(pacingMs);
+  if (runs.length < samples && pacingMs > 0)
+    await page.waitForTimeout(pacingMs);
+}
+
+if (runs.length < samples) {
+  throw new Error(
+    `Only collected ${runs.length}/${samples} samples after ${attempts} attempts`,
+  );
 }
 
 const result = {
@@ -248,6 +266,7 @@ const result = {
   },
   samples,
   pacingMs,
+  discardedAttempts: attempts - runs.length,
   summary: summarize(runs),
   runs,
 };
