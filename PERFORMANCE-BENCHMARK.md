@@ -7,31 +7,45 @@ improvements remain visible in Git history.
 
 ## Latest summary
 
-**Current accepted build:** `30748ee`
-(`ghcr.io/open-suite/portal-{frontend,api}:sha-30748ee`)
+**Current accepted build:** `aeb6371`
+(`ghcr.io/open-suite/portal-{frontend,api}:sha-aeb6371`)
 
-**Latest experiment:** Distribution header preconnect candidate `63976a6`
+**Latest experiment:** Non-blocking Chat sync `aeb6371`
 
 **Target:** `https://bridge.demo.opensuite.online`
 
 **Captured:** 2026-07-11
 
-**Result:** Preconnect rejected; current accepted portal KPIs unchanged
+**Result:** Accepted; Chat no longer blocks on Matrix `/sync`
 
 | KPI                          |      p50 |      p75 |      p95 |     Initial target |
 | ---------------------------- | -------: | -------: | -------: | -----------------: |
-| Portal shell                 |   190 ms |   209 ms |   212 ms |      <= 100 ms p75 |
-| Dashboard visible            |   565 ms |   568 ms |   571 ms |      <= 500 ms p75 |
-| Config response -> dashboard |   379 ms |   380 ms |   382 ms |      <= 100 ms p75 |
-| First widget data            |   641 ms |   645 ms |   704 ms |      <= 500 ms p75 |
-| All widgets settled          | 1,020 ms | 1,034 ms | 1,295 ms |    <= 1,000 ms p75 |
+| Portal shell                 |   197 ms |   216 ms |   228 ms |      <= 100 ms p75 |
+| Dashboard visible            |   572 ms |   579 ms |   584 ms |      <= 500 ms p75 |
+| Config response -> dashboard |   379 ms |   384 ms |   388 ms |      <= 100 ms p75 |
+| First widget data            |   649 ms |   655 ms |   682 ms |      <= 500 ms p75 |
+| All widgets settled          | 1,008 ms | 1,025 ms | 1,323 ms |    <= 1,000 ms p75 |
 | Global spinner exposure      |     0 ms |     0 ms |     0 ms |               0 ms |
-| Widget spinner exposure      |   475 ms |   484 ms |   736 ms |      0 ms blocking |
-| `/config`                    |    61 ms |    62 ms |    68 ms |      <= 250 ms p95 |
-| Calendar                     |    67 ms |    68 ms |   731 ms |    <= 1,000 ms p95 |
-| Docs                         |   121 ms |   128 ms |   131 ms | <= 250 ms p95 warm |
-| Meet                         |   125 ms |   138 ms |   144 ms | <= 250 ms p95 warm |
-| Files                        |   466 ms |   474 ms |   534 ms |    <= 1,000 ms p95 |
+| Widget spinner exposure      |   440 ms |   457 ms |   761 ms |      0 ms blocking |
+| `/config`                    |    62 ms |    65 ms |    75 ms |      <= 250 ms p95 |
+| Calendar                     |    67 ms |    78 ms |   757 ms |    <= 1,000 ms p95 |
+| Docs                         |   125 ms |   130 ms |   143 ms | <= 250 ms p95 warm |
+| Meet                         |   126 ms |   134 ms |   144 ms | <= 250 ms p95 warm |
+| Files                        |   437 ms |   455 ms |   501 ms |    <= 1,000 ms p95 |
+
+### Latest Chat result
+
+The controlled-delay profile adds three seconds before each initial Matrix
+sync. It verifies that Chat remains usable while the real request is pending.
+
+| KPI                     | Baseline p75 | Candidate p75 | Change |
+| ----------------------- | -----------: | ------------: | -----: |
+| Chat ready, normal      |       644 ms |        576 ms |   -11% |
+| Chat spinner, normal    |        61 ms |          0 ms |  -100% |
+| Matrix sync, normal     |       643 ms |        673 ms |    +5% |
+| Chat ready, 3 s delay   |     4,842 ms |      1,857 ms |   -62% |
+| Chat spinner, 3 s delay |     3,068 ms |          0 ms |  -100% |
+| Matrix sync, 3 s delay  |     4,834 ms |      4,927 ms |    +2% |
 
 ### Latest app-switch result
 
@@ -47,19 +61,18 @@ cannot affect a same-origin dashboard reload.
 
 ### Current interpretation
 
-- Two Calendar cache-expiry misses reached 731-764 ms in the final run, while
-  Docs max stayed at 133 ms, Meet at 176 ms and Files at 540 ms. This confirms
-  that the event loop is no longer held by synchronous CalDAV I/O.
-- Against the previous accepted build, p95 improved 78% for Docs, 75% for Meet,
-  48% for Files, 16% for widget-spinner exposure and 9% for all widgets. Calendar
-  itself is intentionally not made faster by thread offloading.
-- Median and p75 dashboard timings moved by roughly normal shared-demo variance.
-  Acceptance is based on isolating the tail, not claiming those as gains.
-- The final deployed run collected all 20 samples with zero discarded attempts.
-  The harness still reports discarded attempts explicitly when they occur.
-- The shared-header preconnect hint was present before every candidate click,
-  but connection and TLS costs did not fall. Page p75 moved by only 13 ms inside
-  a roughly two-second baseline range. The speculative runtime work was reverted.
+- Chat readiness now equals card-render time and remains independent of Matrix
+  latency. Cached unread counts are scoped to the Matrix user and refreshed in
+  the background; retryable failures retain the last known content.
+- The normal Matrix request did not get faster (643 -> 673 ms p75). The accepted
+  gain is eliminating that request from the rendering critical path, not moving
+  work out of the measurement window.
+- The full suite remained within shared-demo variance. Aggregate widget-spinner
+  exposure improved 6% at p75 because the benchmark user has not connected Chat;
+  the dedicated Chat journey is the authoritative measurement for this change.
+- The 20-sample run discarded one navigation after its explicit 30-second
+  timeout. A later 2.39-second Calendar miss was retained and did not propagate
+  to Docs, Meet or Files.
 
 ## Method
 
@@ -88,6 +101,21 @@ BENCHMARK_OUTPUT=/tmp/open-suite-app-switch.json \
 npm run benchmark:app-switch
 ```
 
+Chat uses `performance/chat.mjs`, which establishes Matrix SSO in the same
+browser context before measuring authenticated reloads:
+
+```bash
+BENCHMARK_USER=johndoe \
+BENCHMARK_PASS='<demo password>' \
+BENCHMARK_SAMPLES=10 \
+BENCHMARK_LABEL='<release-or-candidate>' \
+BENCHMARK_OUTPUT=/tmp/open-suite-chat.json \
+npm run benchmark:chat
+
+# Repeat with a deterministic slow initial sync.
+BENCHMARK_CHAT_SYNC_DELAY_MS=3000 npm run benchmark:chat
+```
+
 Protocol:
 
 - Chromium 140.0.7339.186, headless, 1440x900 viewport.
@@ -108,8 +136,29 @@ Protocol:
   same established portal/Keycloak SSO state, opens the visible shared Office
   menu, gives Documents 200 ms of hover intent, and waits for Nextcloud
   Documents `DOMContentLoaded`. It reports the first Nextcloud TCP/TLS timing.
+- The Chat journey establishes a Matrix access token through the real SSO flow,
+  warms the session, then reports card render, useful content, visible spinner
+  exposure and initial `/sync` response time. Its optional delay is applied only
+  to the initial sync request and makes blocking behavior deterministic.
 
 ## History
+
+### 7. Accepted: non-blocking Chat sync - `aeb6371` - 2026-07-11
+
+| KPI                     | Baseline p75 | Candidate p75 | Change |
+| ----------------------- | -----------: | ------------: | -----: |
+| Chat ready, normal      |       644 ms |        576 ms |   -11% |
+| Chat spinner, normal    |        61 ms |          0 ms |  -100% |
+| Matrix sync, normal     |       643 ms |        673 ms |    +5% |
+| Chat ready, 3 s delay   |     4,842 ms |      1,857 ms |   -62% |
+| Chat spinner, 3 s delay |     3,068 ms |          0 ms |  -100% |
+| Matrix sync, 3 s delay  |     4,834 ms |      4,927 ms |    +2% |
+
+Accepted. Chat renders user-scoped cached unread state, or a stable empty state
+on first connection, while `/sync` continues in the background. The callback
+also uses a stable connection status instead of a spinner. The accompanying
+20-sample portal run measured 579 ms dashboard p75, 1,025 ms all-widgets p75,
+457 ms aggregate widget-spinner p75 and one explicitly discarded navigation.
 
 ### 6. Final deployed release - `30748ee` - 2026-07-11
 
