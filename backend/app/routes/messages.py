@@ -11,11 +11,11 @@ router = APIRouter(prefix="/messages", tags=["messages"])
 
 
 async def get_messages_client(request: Request, http_client: HTTPClient) -> MessagesClient:
-    if not settings.messages_enabled or not settings.MESSAGES_URL:
+    if not settings.messages_enabled or not settings.messages_api_url:
         raise ServiceUnavailableError("Mail")
 
     token = await get_token(request, settings.MESSAGES_AUDIENCE)
-    return MessagesClient(http_client, settings.MESSAGES_URL, token)
+    return MessagesClient(http_client, settings.messages_api_url, token)
 
 
 @router.get("/widget", response_model=MailWidgetData)
