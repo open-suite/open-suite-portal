@@ -93,8 +93,7 @@ const label = (t, key, fallback) => (t ? t(key) : fallback);
 
 const nextcloudLaunchUrl = (base, path) => {
   const origin = base.replace(/\/$/, "");
-  const target = `${origin}${path}`;
-  return `${origin}/apps/user_oidc/login/1?redirectUrl=${encodeURIComponent(target)}`;
+  return `${origin}${path}`;
 };
 
 // Link to an app: embedded (iframe) apps route internally to /{id}, others open
