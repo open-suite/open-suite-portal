@@ -8,12 +8,14 @@ import Sheets from "../Components/AppWidgets/Sheets/Sheets";
 import Conversations from "../Components/AppWidgets/Conversations/Conversations";
 import Meet from "../Components/AppWidgets/Meet/Meet";
 import Calendar from "../Components/AppWidgets/Calendar/Calendar";
+import Email from "../Components/AppWidgets/Email/Email";
 
 // Curated top-bar layout. The order of entries here is the order shown in the
 // bar. `labelKey` resolves against the "Navigation" i18n namespace, overriding
 // the backend-provided app.title so we control the display names (e.g. the
 // "matrix" service is shown as "Chat"). `icon` is an @ant-design/icons name.
 const NAV_LAYOUT = [
+  { type: "app", appId: "messages", labelKey: "mail", icon: "MailOutlined" },
   // Office is a dropdown grouping NextCloud (the "ocs" service). See OFFICE_LINKS.
   {
     type: "office",
@@ -195,6 +197,7 @@ const WIDGET_COMPONENTS = {
   conversation: Conversations,
   meet: Meet,
   calendar: Calendar,
+  messages: Email,
 };
 
 // All dashboard widgets the current config can show, as { id, title, node }.

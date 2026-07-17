@@ -18,7 +18,13 @@
     "lastModified": "Laatste wijziging"
   },
   "Email": {
-    "title": "Email"
+    "title": "Mail",
+    "compose": "Opstellen",
+    "inbox": "Postvak IN",
+    "unread": "Ongelezen",
+    "noUnread": "Geen ongelezen e-mail",
+    "noSubject": "(geen onderwerp)",
+    "unknownSender": "Onbekende afzender"
   },
   "Drive": {
     "title": "Drive",
@@ -82,6 +88,7 @@
   },
   "Navigation": {
     "home": "Home",
+    "mail": "Mail",
     "admin": "Beheer",
     "office": "Office",
     "documents": "Documenten",

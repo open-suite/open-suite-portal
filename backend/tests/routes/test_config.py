@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 
@@ -40,3 +42,20 @@ def test_config_get_authenticated(authenticated_client: TestClient) -> None:
 
     # Verify theme_css is a string
     assert isinstance(data["theme_css"], str)
+
+
+@patch("app.routes.config.settings.MESSAGES_URL", "https://messages.example.com")
+@patch("app.routes.config.settings.MESSAGES_CARD", True)
+def test_config_includes_messages(authenticated_client: TestClient) -> None:
+    response = authenticated_client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    messages = next(app for app in response.json()["applications"] if app["id"] == "messages")
+    assert messages == {
+        "enabled": True,
+        "id": "messages",
+        "icon": "mail",
+        "url": "https://messages.example.com",
+        "title": "Mail",
+        "iframe": False,
+    }
