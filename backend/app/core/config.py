@@ -124,6 +124,7 @@ class Settings(BaseSettings):
     MATRIX_CARD: bool = False
 
     MESSAGES_URL: str | None = None
+    MESSAGES_API_URL: str | None = None
     MESSAGES_AUDIENCE: str = "messages"
     MESSAGES_ICON: str = "mail"
     MESSAGES_TITLE: str = "Mail"
@@ -262,6 +263,11 @@ class Settings(BaseSettings):
     @property
     def messages_enabled(self) -> bool:
         return self.MESSAGES_URL is not None
+
+    @computed_field
+    @property
+    def messages_api_url(self) -> str | None:
+        return self.MESSAGES_API_URL or self.MESSAGES_URL
 
     @computed_field
     @property

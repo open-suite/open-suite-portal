@@ -15,6 +15,7 @@ class TestMessagesEndpoints:
         assert response.status_code == 503
 
     @patch("app.routes.messages.settings.MESSAGES_URL", "https://messages.example.com")
+    @patch("app.routes.messages.settings.MESSAGES_API_URL", "http://messages-backend:8000")
     @patch("app.routes.messages.settings.MESSAGES_AUDIENCE", "messages")
     @patch("app.routes.messages.get_token")
     @patch("app.routes.messages.MessagesClient")
@@ -47,4 +48,5 @@ class TestMessagesEndpoints:
         assert response.json()["unread_count"] == 4
         assert response.json()["threads"][0]["id"] == "thread-1"
         mock_get_token.assert_awaited_once()
+        assert mock_messages_client.call_args.args[1] == "http://messages-backend:8000"
         client.get_widget_data.assert_awaited_once_with(page_size=10)
