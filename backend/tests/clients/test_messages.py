@@ -14,8 +14,9 @@ class TestMessagesClient:
     def client(self, mock_http_client: AsyncMock) -> MessagesClient:
         return MessagesClient(
             http_client=mock_http_client,
-            base_url="https://messages.example.com/",
+            base_url="http://messages-backend.mb-messages.svc.cluster.local:8000/",
             token="test-token",
+            public_url="https://messages.example.com/",
         )
 
     async def test_get_widget_data_uses_identity_mailbox(
@@ -67,8 +68,16 @@ class TestMessagesClient:
         assert len(result.threads) == 1
         assert result.threads[0].subject == "Quarterly review"
 
+        first_call = mock_http_client.get.call_args_list[0]
+        assert first_call.args[0] == ("http://messages-backend.mb-messages.svc.cluster.local:8000/api/v1.0/mailboxes/")
+        assert first_call.kwargs["headers"] == {
+            "Authorization": "Bearer test-token",
+            "Host": "messages.example.com",
+            "X-Forwarded-Proto": "https",
+        }
+
         second_call = mock_http_client.get.call_args_list[1]
-        assert second_call.args[0] == "https://messages.example.com/api/v1.0/threads/"
+        assert second_call.args[0] == ("http://messages-backend.mb-messages.svc.cluster.local:8000/api/v1.0/threads/")
         assert second_call.kwargs["params"] == {
             "mailbox_id": "personal-id",
             "has_unread": 1,

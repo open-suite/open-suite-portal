@@ -49,4 +49,5 @@ class TestMessagesEndpoints:
         assert response.json()["threads"][0]["id"] == "thread-1"
         mock_get_token.assert_awaited_once()
         assert mock_messages_client.call_args.args[1] == "http://messages-backend:8000"
+        assert mock_messages_client.call_args.kwargs["public_url"] == "https://messages.example.com"
         client.get_widget_data.assert_awaited_once_with(page_size=10)
