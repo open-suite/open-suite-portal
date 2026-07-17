@@ -1,5 +1,5 @@
 "use client";
-import { Affix, Avatar, Dropdown, Flex, Layout, Menu } from "antd";
+import { Affix, Avatar, Dropdown, Flex, Layout, Menu, Tooltip } from "antd";
 import {
   LogoutOutlined,
   UserOutlined,
@@ -62,12 +62,6 @@ function HeaderLayout({
       ),
       icon: <BgColorsOutlined />,
     },
-    {
-      key: "4",
-      label: <Link href={`/api/v1/auth/logout`}>{tHome("logout")}</Link>,
-      icon: <LogoutOutlined />,
-      danger: true,
-    },
   ].filter(Boolean); // Filter out falsey values (like the admin item when !isAdmin)
   const header = (
     <Header>
@@ -87,11 +81,22 @@ function HeaderLayout({
           />
         )}
         {!isProfile && (
-          <Dropdown menu={{ items }}>
-            <Link className="profile-link" href="/#">
-              <Avatar icon={<UserOutlined />} /> {!isInIframe && profile}
-            </Link>
-          </Dropdown>
+          <>
+            <Dropdown menu={{ items }}>
+              <Link className="profile-link" href="/#">
+                <Avatar icon={<UserOutlined />} /> {!isInIframe && profile}
+              </Link>
+            </Dropdown>
+            <Tooltip title={tHome("logout")}>
+              <Link
+                className="logout-link"
+                href="/api/v1/auth/logout"
+                aria-label={tHome("logout")}
+              >
+                <LogoutOutlined />
+              </Link>
+            </Tooltip>
+          </>
         )}
       </Flex>
     </Header>
