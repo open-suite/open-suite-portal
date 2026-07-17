@@ -1,5 +1,7 @@
 from typing import Any
+from urllib.parse import urlsplit
 
+import httpx
 from app.clients.base import BaseAPIClient
 from app.models.mail import Mailbox, MailThread, MailWidgetData
 from app.models.pagination import PaginatedResponse
@@ -9,6 +11,27 @@ class MessagesClient(BaseAPIClient):
     """Client for the La Suite Messages API."""
 
     service_name = "Mail"
+
+    def __init__(
+        self,
+        http_client: httpx.AsyncClient,
+        base_url: str,
+        token: str,
+        public_url: str,
+        timeout: float | None = None,
+    ) -> None:
+        super().__init__(http_client, base_url, token, timeout)
+        public_endpoint = urlsplit(public_url)
+        self.public_host = public_endpoint.netloc
+        self.public_scheme = public_endpoint.scheme
+
+    def _auth_headers(self) -> dict[str, str]:
+        """Identify the public endpoint while using the private service route."""
+        return {
+            **super()._auth_headers(),
+            "Host": self.public_host,
+            "X-Forwarded-Proto": self.public_scheme,
+        }
 
     async def get_mailboxes(self, path: str = "api/v1.0/mailboxes/") -> list[Mailbox]:
         return await self._get_resource(path=path, model_type=list[Mailbox])
