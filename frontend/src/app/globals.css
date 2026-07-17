@@ -636,6 +636,26 @@ footer {
   text-decoration: none;
 }
 
+.logout-link {
+  align-items: center;
+  color: var(--header-text-color);
+  display: inline-flex;
+  flex: 0 0 32px;
+  height: 32px;
+  justify-content: center;
+  margin-left: 12px;
+  margin-top: 4px;
+  width: 32px;
+}
+
+.logout-link:hover,
+.logout-link:focus-visible {
+  background: var(--menu-item-hover-bg);
+  border-radius: 4px;
+  color: var(--header-text-color);
+  outline: none;
+}
+
 .header-menu {
   flex: 1;
   min-width: 0;
