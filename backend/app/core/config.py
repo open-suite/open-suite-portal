@@ -123,6 +123,13 @@ class Settings(BaseSettings):
     MATRIX_IFRAME: bool = False
     MATRIX_CARD: bool = False
 
+    MESSAGES_URL: str | None = None
+    MESSAGES_AUDIENCE: str = "messages"
+    MESSAGES_ICON: str = "mail"
+    MESSAGES_TITLE: str = "Mail"
+    MESSAGES_IFRAME: bool = False
+    MESSAGES_CARD: bool = True
+
     # AI Integration
     AI_URL: str | None = "https://api.openai.com/v1/"
     AI_ICON: str = "smart_toy"
@@ -250,6 +257,11 @@ class Settings(BaseSettings):
     @property
     def matrix_enabled(self) -> bool:
         return self.MATRIX_URL is not None
+
+    @computed_field
+    @property
+    def messages_enabled(self) -> bool:
+        return self.MESSAGES_URL is not None
 
     @computed_field
     @property

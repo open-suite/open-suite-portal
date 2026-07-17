@@ -18,7 +18,13 @@
     "lastModified": "Last modified"
   },
   "Email": {
-    "title": "Email"
+    "title": "Mail",
+    "compose": "Compose",
+    "inbox": "Inbox",
+    "unread": "Unread",
+    "noUnread": "No unread mail",
+    "noSubject": "(no subject)",
+    "unknownSender": "Unknown sender"
   },
   "Drive": {
     "title": "Drive",
@@ -82,6 +88,7 @@
   },
   "Navigation": {
     "home": "Home",
+    "mail": "Mail",
     "admin": "Admin",
     "office": "Office",
     "documents": "Documents",

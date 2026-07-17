@@ -15,7 +15,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/config", tags=["config"])
 
-ALL_SERVICES = ["ai", "docs", "drive", "calendar", "task", "meet", "ocs", "grist", "conversation", "matrix"]
+ALL_SERVICES = [
+    "ai",
+    "docs",
+    "drive",
+    "calendar",
+    "task",
+    "meet",
+    "ocs",
+    "grist",
+    "conversation",
+    "matrix",
+    "messages",
+]
 
 
 @router.get("")
