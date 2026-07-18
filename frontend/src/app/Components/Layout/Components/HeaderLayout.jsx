@@ -1,5 +1,5 @@
 "use client";
-import { Affix, Avatar, Dropdown, Flex, Layout, Menu, Tooltip } from "antd";
+import { Affix, Avatar, Dropdown, Flex, Layout, Tooltip } from "antd";
 import {
   LogoutOutlined,
   UserOutlined,
@@ -8,8 +8,6 @@ import {
   SettingOutlined,
 } from "@ant-design/icons";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { menuItem } from "../../../Common/pageConfig";
 import { useTranslations } from "../../../../i18n/TranslationsProvider";
 import { useTheme } from "../../Context/ThemeContext";
 const { Header } = Layout;
@@ -17,26 +15,16 @@ const { Header } = Layout;
 function HeaderLayout({
   isProfile = true,
   profile,
-  applications,
   redirectUrl,
   isAffixHeader = true,
   isAdmin = false,
 }) {
-  const pathname = usePathname();
   const tHome = useTranslations("HomePage");
   const tHeader = useTranslations("Header");
-  const tNav = useTranslations("Navigation");
   const tTheme = useTranslations("Theme");
   const { theme, toggleTheme } = useTheme();
   const isInIframe =
     typeof window !== "undefined" && window.self !== window.top;
-
-  // Determine selected key based on current path
-  const getSelectedKey = () => {
-    if (pathname === "/") return ["home"];
-    const pathSegment = pathname.slice(1); // Remove leading slash
-    return [pathSegment];
-  };
 
   const items = [
     isAdmin && {
@@ -71,15 +59,6 @@ function HeaderLayout({
             {tHome("title")}
           </Link>
         </div>
-        {applications && (
-          <Menu
-            theme="dark"
-            mode="horizontal"
-            selectedKeys={getSelectedKey()}
-            items={menuItem(applications, tNav)}
-            className="header-menu"
-          />
-        )}
         {!isProfile && (
           <>
             <Dropdown menu={{ items }}>

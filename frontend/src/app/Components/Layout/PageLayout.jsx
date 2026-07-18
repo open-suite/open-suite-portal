@@ -28,7 +28,6 @@ export default function PageLayout({ children }) {
       <HeaderLayout
         isProfile={!!error}
         profile={data?.name}
-        applications={appConfig?.applications}
         redirectUrl={appConfig?.redirect_to_account_page}
         isAffixHeader={!isEmbeddedAppRoute} // Affix header for embedded app routes
         isAdmin={appConfig?.isAdmin}
