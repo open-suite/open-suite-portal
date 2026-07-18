@@ -28,7 +28,12 @@ function Meet({ app }) {
   const [page, setPage] = useState(1);
   const [starting, setStarting] = useState(false);
   const t = useTranslations("Meet");
-  const { data: meet, error, onRefresh } = useFetchWithRefresh("/meet/rooms");
+  const {
+    data: meet,
+    loading,
+    error,
+    onRefresh,
+  } = useFetchWithRefresh("/meet/rooms");
 
   // Custom Pagination because meet dose not support pagination correctly
   const paginatedMeet = meet?.results?.slice((page - 1) * 3, page * 3) ?? [];
@@ -85,7 +90,7 @@ function Meet({ app }) {
           ) || []
         }
         search={search}
-        // loading={loading}
+        loading={loading}
         renderItem={(item) => (
           <CustomList.Item key={item.slug}>
             <CustomList.Item.Meta

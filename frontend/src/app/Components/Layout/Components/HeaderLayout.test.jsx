@@ -5,7 +5,17 @@ import { clearMatrixSession } from "@/lib/matrix";
 import HeaderLayout from "./HeaderLayout";
 
 vi.mock("next/link", () => ({
-  default: ({ children, ...props }) => <a {...props}>{children}</a>,
+  default: ({ children, onClick, ...props }) => (
+    <a
+      {...props}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick?.(event);
+      }}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("../../../../i18n/TranslationsProvider", () => ({

@@ -71,7 +71,9 @@ describe("AppProvider", () => {
 
     expect(await screen.findByText("503")).toBeInTheDocument();
     expect(attemptSilentLoginOrLogin).toHaveBeenCalledWith(error);
-    expect(screen.queryByLabelText("Loading Open Suite")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Loading Open Suite"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the bootstrap shell mounted while a 401 redirects to login", async () => {

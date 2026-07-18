@@ -13,7 +13,10 @@ vi.mock("next/link", () => ({
 describe("Widget", () => {
   it("replaces stale content with a request error", () => {
     render(
-      <Widget app={{ id: "docs", title: "Documents", url: "/docs" }} error="Offline">
+      <Widget
+        app={{ id: "docs", title: "Documents", url: "/docs" }}
+        error="Offline"
+      >
         <span>Old result</span>
       </Widget>,
     );

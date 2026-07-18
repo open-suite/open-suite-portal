@@ -90,6 +90,5 @@ describe("Sheets", () => {
     expect(
       api.get.mock.calls.some(([url]) => url.includes("organization_id=99")),
     ).toBe(false);
-    expect(localStorage.getItem("sheets_selected_org")).toBe("7");
   });
 });

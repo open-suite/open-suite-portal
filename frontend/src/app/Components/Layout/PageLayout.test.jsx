@@ -3,9 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 import PageLayout from "./PageLayout";
 
 vi.mock("antd", () => {
-  const Layout = ({ children }) => <div>{children}</div>;
-  Layout.Content = ({ children }) => <main>{children}</main>;
-  Layout.Footer = ({ children }) => <footer>{children}</footer>;
+  function Layout({ children }) {
+    return <div>{children}</div>;
+  }
+  function Content({ children }) {
+    return <main>{children}</main>;
+  }
+  function Footer({ children }) {
+    return <footer>{children}</footer>;
+  }
+  Layout.Content = Content;
+  Layout.Footer = Footer;
   return {
     FloatButton: () => null,
     Layout,

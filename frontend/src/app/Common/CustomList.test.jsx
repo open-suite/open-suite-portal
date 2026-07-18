@@ -23,7 +23,9 @@ describe("CustomList", () => {
     );
     expect(screen.getByText("No data available")).toBeInTheDocument();
 
-    rerender(<CustomList dataSource={[]} search="missing" renderItem={() => null} />);
+    rerender(
+      <CustomList dataSource={[]} search="missing" renderItem={() => null} />,
+    );
     expect(screen.getByText("No items found")).toBeInTheDocument();
   });
 

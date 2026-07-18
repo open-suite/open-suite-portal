@@ -40,10 +40,9 @@ describe("Admin", () => {
     render(<Admin />);
 
     expect(screen.getByText("Admin Portal")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /docs.example.test/ })).toHaveAttribute(
-      "href",
-      "https://docs.example.test/admin",
-    );
+    expect(
+      screen.getByRole("link", { name: /docs.example.test/ }),
+    ).toHaveAttribute("href", "https://docs.example.test/admin");
     expect(state.replace).not.toHaveBeenCalled();
   });
 

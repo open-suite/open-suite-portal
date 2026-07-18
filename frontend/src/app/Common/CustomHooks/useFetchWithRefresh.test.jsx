@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import api from "@/lib/axios";
 import { attemptSilentLoginOrLogin } from "@/lib/silentLogin";
+import { useAutoRefresh } from "./useAutoRefresh";
 import { useFetchWithRefresh } from "./useFetchWithRefresh";
 
 vi.mock("@/lib/axios", () => ({
@@ -76,5 +77,34 @@ describe("useFetchWithRefresh", () => {
       await first.promise;
     });
     expect(result.current.data).toEqual({ request: "new" });
+  });
+
+  it("finishes interactive loading when an auto-refresh overlaps it", async () => {
+    const interactive = deferred();
+    const automatic = deferred();
+    api.get
+      .mockReturnValueOnce(interactive.promise)
+      .mockReturnValueOnce(automatic.promise);
+
+    const { result } = renderHook(() => useFetchWithRefresh("/documents"));
+    await waitFor(() => expect(result.current.loading).toBe(true));
+
+    act(() => {
+      useAutoRefresh.mock.lastCall[0]();
+    });
+    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      automatic.resolve({ data: { request: "automatic" } });
+      await automatic.promise;
+    });
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      interactive.resolve({ data: { request: "interactive" } });
+      await interactive.promise;
+    });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.data).toEqual({ request: "automatic" });
   });
 });
