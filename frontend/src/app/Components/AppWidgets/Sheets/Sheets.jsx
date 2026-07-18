@@ -1,5 +1,5 @@
 // grist
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Avatar, Divider, Select } from "antd";
 import { EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import Link from "next/link";
@@ -10,8 +10,9 @@ import { useTranslations } from "../../../../i18n/TranslationsProvider";
 import CustomList from "../../../Common/CustomList";
 
 function Sheets({ app }) {
-  const selectedOrgStorage = localStorage.getItem("sheets_selected_org");
-  const [selectedOrg, setSelectedOrg] = useState(selectedOrgStorage || null);
+  const [selectedOrg, setSelectedOrg] = useState(
+    () => localStorage.getItem("sheets_selected_org") || null,
+  );
   const [page, setPage] = useState(1);
   const t = useTranslations("Sheets");
   const {
@@ -21,25 +22,29 @@ function Sheets({ app }) {
     onRefresh: refetchOrgs,
   } = useFetchWithRefresh("/grist/orgs");
 
-  const effectiveSelectedOrg =
-    selectedOrg || (orgs.length > 0 ? orgs[0]?.id : null);
+  const selectedOrgIsAvailable = orgs.some(
+    (org) => String(org.id) === String(selectedOrg),
+  );
+  const effectiveSelectedOrg = selectedOrgIsAvailable
+    ? selectedOrg
+    : (orgs[0]?.id ?? null);
 
   const {
     data: sheets,
     loading: loadingSheets,
     error: errorSheets,
     onRefresh: refetchSheets,
-  } = useFetchWithRefresh("/grist/docs", {
-    organization_id: effectiveSelectedOrg,
-    page,
-    page_size: 3,
-  });
-
-  useEffect(() => {
-    if (!selectedOrg && orgs.length > 0) {
-      localStorage.setItem("sheets_selected_org", orgs?.at(0)?.id);
-    }
-  }, [orgs, selectedOrg]);
+  } = useFetchWithRefresh(
+    "/grist/docs",
+    {
+      organization_id: effectiveSelectedOrg,
+      page,
+      page_size: 3,
+    },
+    {
+      enabled: effectiveSelectedOrg !== null,
+    },
+  );
 
   const handleOrgChange = (value) => {
     setSelectedOrg(value);

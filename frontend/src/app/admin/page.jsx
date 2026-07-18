@@ -12,17 +12,17 @@ export default function Admin() {
   const t = useTranslations("AdminPortal");
   const router = useRouter();
   useEffect(() => {
-    if (!appConfig.isAdmin) {
+    if (!appConfig.is_admin) {
       router.replace("/");
     }
-  }, [appConfig.isAdmin, router]);
+  }, [appConfig.is_admin, router]);
 
   const configUrl = (item) =>
     item?.id === "ocs"
       ? `${item?.url}/settings/admin`
       : `${item?.url}/admin` || "";
   return (
-    appConfig.isAdmin && (
+    appConfig.is_admin && (
       <Card className="admin-portal" title={t("title")}>
         {t("description")}
         <ul>

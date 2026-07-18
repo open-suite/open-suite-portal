@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { useTranslations } from "../../../../i18n/TranslationsProvider";
 import { useTheme } from "../../Context/ThemeContext";
+import { clearMatrixSession } from "@/lib/matrix";
 const { Header } = Layout;
 
 function HeaderLayout({
@@ -21,6 +22,7 @@ function HeaderLayout({
 }) {
   const tHome = useTranslations("HomePage");
   const tHeader = useTranslations("Header");
+  const tNav = useTranslations("Navigation");
   const tTheme = useTranslations("Theme");
   const { theme, toggleTheme } = useTheme();
   const isInIframe =
@@ -71,6 +73,7 @@ function HeaderLayout({
                 className="logout-link"
                 href="/api/v1/auth/logout"
                 aria-label={tHome("logout")}
+                onClick={clearMatrixSession}
               >
                 <LogoutOutlined />
               </Link>
