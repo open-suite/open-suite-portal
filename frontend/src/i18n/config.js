@@ -12,7 +12,9 @@ const messagesMap = {
 };
 export const LOCALE_STORAGE_LANG_KEY = "preferred-locale";
 const browserLocale =
-  typeof navigator !== "undefined" ? navigator.language.substring(0, 2) : "nl";
+  typeof window !== "undefined"
+    ? window.navigator.language.substring(0, 2)
+    : "nl";
 export const INITIAL_LOCALE = locales.includes(browserLocale)
   ? browserLocale
   : "nl";
