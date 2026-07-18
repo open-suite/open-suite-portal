@@ -57,7 +57,12 @@ export function useFetchWithRefresh(url, params = {}, { enabled = true } = {}) {
   );
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setData([]);
+      setError("");
+      setLoading(false);
+      return;
+    }
     fetchData(false);
     return () => {
       latestRequest.current += 1;

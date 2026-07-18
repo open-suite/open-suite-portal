@@ -107,4 +107,61 @@ describe("useFetchWithRefresh", () => {
     expect(result.current.loading).toBe(false);
     expect(result.current.data).toEqual({ request: "automatic" });
   });
+
+  it("clears data, errors, and loading when disabled", async () => {
+    const pending = deferred();
+    api.get
+      .mockResolvedValueOnce({ data: { results: ["stale"] } })
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockReturnValueOnce(pending.promise);
+
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useFetchWithRefresh("/documents", {}, { enabled }),
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() =>
+      expect(result.current.data).toEqual({ results: ["stale"] }),
+    );
+
+    await act(async () => {
+      await result.current.onRefresh();
+    });
+    expect(result.current.error).toBe("Offline");
+
+    act(() => {
+      result.current.onRefresh();
+    });
+    await waitFor(() => expect(result.current.loading).toBe(true));
+
+    rerender({ enabled: false });
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual([]);
+      expect(result.current.error).toBe("");
+      expect(result.current.loading).toBe(false);
+    });
+  });
+
+  it("cannot restore stale state when an interactive request finishes after disabling", async () => {
+    const pending = deferred();
+    api.get.mockReturnValueOnce(pending.promise);
+
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useFetchWithRefresh("/documents", {}, { enabled }),
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.loading).toBe(true));
+
+    rerender({ enabled: false });
+
+    await act(async () => {
+      pending.resolve({ data: { results: ["stale"] } });
+      await pending.promise;
+    });
+
+    expect(result.current.data).toEqual([]);
+    expect(result.current.error).toBe("");
+    expect(result.current.loading).toBe(false);
+    expect(api.get).toHaveBeenCalledOnce();
+  });
 });
