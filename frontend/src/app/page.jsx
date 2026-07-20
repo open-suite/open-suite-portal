@@ -47,7 +47,8 @@ function buildLayouts(saved, ids) {
     const wide = !ONE_COL.has(bp);
     out[bp] = ids.map((id, i) => {
       if (existing[id]) return existing[id];
-      if (wide && DEFAULT_WIDE[id]) return { i: id, minH: 3, ...DEFAULT_WIDE[id] };
+      if (wide && DEFAULT_WIDE[id])
+        return { i: id, minH: 3, ...DEFAULT_WIDE[id] };
       return { i: id, x: (i % perRow) * w, y: 9999, w, h: WIDGET_H, minH: 3 };
     });
   }
