@@ -9,6 +9,7 @@ const samples = Number(process.env.BENCHMARK_SAMPLES || 20);
 const pacingMs = Number(process.env.BENCHMARK_PACING_MS || 1000);
 const output = process.env.BENCHMARK_OUTPUT || "benchmark-result.json";
 const label = process.env.BENCHMARK_LABEL || "unlabelled";
+const traceOutput = process.env.BENCHMARK_TRACE;
 
 if (!username || !password) {
   console.error("Set BENCHMARK_USER and BENCHMARK_PASS");
@@ -122,13 +123,22 @@ const loginButton = page.getByText("Log in", { exact: true });
 if (await loginButton.isVisible().catch(() => false)) await loginButton.click();
 await dashboard.waitFor({ state: "visible", timeout: 30_000 });
 
-const requiredApiFragments = [
+const defaultRequiredApiFragments = [
   "/api/v1/config",
   "/api/v1/caldav/calendars/",
   "/api/v1/docs/documents",
   "/api/v1/meet/rooms",
   "/api/v1/ocs/activities",
 ];
+const configuredApiFragments = (
+  process.env.BENCHMARK_REQUIRED_API_FRAGMENTS || ""
+)
+  .split(",")
+  .map((fragment) => fragment.trim())
+  .filter(Boolean);
+const requiredApiFragments = configuredApiFragments.length
+  ? configuredApiFragments
+  : defaultRequiredApiFragments;
 
 // Authenticate and warm browser/server caches before collecting the declared
 // warm sample set. The bootstrap navigation is deliberately not mixed into it.
@@ -146,6 +156,14 @@ await page.waitForFunction(
   requiredApiFragments,
   { timeout: 30_000 },
 );
+// Start after login and warm-up so traces do not capture login form fields.
+if (traceOutput) {
+  await context.tracing.start({
+    screenshots: true,
+    snapshots: true,
+    sources: true,
+  });
+}
 
 const runs = [];
 let attempts = 0;
@@ -206,21 +224,55 @@ while (runs.length < samples && attempts < maxAttempts) {
       );
       return entry?.responseEnd;
     };
+    const apiResources = resources.filter((resource) =>
+      resource.name.includes("/api/v1/"),
+    );
+    const widgetFragments = fragments.slice(1);
+    const widgetResources = apiResources.filter((resource) =>
+      widgetFragments.some((fragment) => resource.name.includes(fragment)),
+    );
+    const concurrencyEvents = apiResources
+      .filter((resource) => resource.responseEnd > 0)
+      .flatMap((resource) => [
+        { at: resource.startTime, delta: 1 },
+        { at: resource.responseEnd, delta: -1 },
+      ])
+      .toSorted((a, b) => a.at - b.at || a.delta - b.delta);
+    let currentConcurrency = 0;
+    let maxApiConcurrency = 0;
+    for (const event of concurrencyEvents) {
+      currentConcurrency += event.delta;
+      maxApiConcurrency = Math.max(maxApiConcurrency, currentConcurrency);
+    }
     const ends = fragments.map(responseEndFor).filter(Number.isFinite);
+    const widgetStarts = widgetResources
+      .map((resource) => resource.startTime)
+      .filter(Number.isFinite);
+    const configEntry = resources.find((resource) =>
+      resource.name.includes("/api/v1/config"),
+    );
     const configResponseEnd = responseEndFor("/api/v1/config");
     return {
       metrics: {
         shell_ms: state.marks.shell,
+        bootstrap_effect_ms: configEntry?.startTime,
         dashboard_ms: state.marks.dashboard,
         config_to_dashboard_ms:
           Number.isFinite(configResponseEnd) &&
           Number.isFinite(state.marks.dashboard)
             ? state.marks.dashboard - configResponseEnd
             : undefined,
+        widget_fanout_delay_ms:
+          Number.isFinite(configResponseEnd) && widgetStarts.length
+            ? Math.min(...widgetStarts) - configResponseEnd
+            : undefined,
         first_widget_data_ms: state.marks.firstWidgetData,
         all_widgets_ms: ends.length ? Math.max(...ends) : undefined,
         global_spinner_ms: globalSpinnerMs,
         widget_spinner_ms: widgetSpinnerMs,
+        api_request_count: apiResources.length,
+        required_widget_request_count: widgetResources.length,
+        max_api_concurrency: maxApiConcurrency,
         config_ms: durationFor("/api/v1/config"),
         calendar_ms: durationFor("/api/v1/caldav/calendars/"),
         docs_ms: durationFor("/api/v1/docs/documents"),
@@ -273,4 +325,5 @@ const result = {
 
 await writeFile(output, `${JSON.stringify(result, null, 2)}\n`);
 console.log(JSON.stringify(result.summary, null, 2));
+if (traceOutput) await context.tracing.stop({ path: traceOutput });
 await browser.close();

@@ -57,12 +57,22 @@ class OCSClient(BaseAPIClient):
         if probe.status_code in (204, 304):
             return FileActivityResponse(results=[], last_given=None)
 
-        activities, headers = await self._get_resource_with_headers(
-            path=url_string,
-            model_type=list[Activity],
-            params=params,
-            response_parser=lambda data: data.get("ocs", {}).get("data", []),
-        )
+        if probe.status_code == 200:
+            activities, headers = self._parse_response_with_headers(
+                response=probe,
+                path=url_string,
+                model_type=list[Activity],
+                response_parser=lambda data: data.get("ocs", {}).get("data", []),
+            )
+        else:
+            # Preserve the existing second attempt for non-success statuses;
+            # only the healthy 200 path was redundantly fetched twice.
+            activities, headers = await self._get_resource_with_headers(
+                path=url_string,
+                model_type=list[Activity],
+                params=params,
+                response_parser=lambda data: data.get("ocs", {}).get("data", []),
+            )
 
         # Filter by object_type == "files" (includes files + files_sharing apps)
         file_activities: list[FileActivity] = []
