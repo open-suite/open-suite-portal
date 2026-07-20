@@ -272,6 +272,35 @@ class TestOCSClient:
         assert activity.files[0].id == 31826
         assert activity.files[0].name == "test.docx"
         assert activity.files[0].path == "test.docx"
+        mock_http_client.get.assert_awaited_once()
+
+    @pytest.mark.parametrize("status_code", [204, 304])
+    async def test_get_file_activities_empty_status_uses_one_request(
+        self,
+        status_code: int,
+        client: OCSClient,
+        mock_http_client: AsyncMock,
+    ) -> None:
+        """Treat Nextcloud's empty statuses as a successful empty response."""
+        mock_http_client.get.return_value = create_mock_response(status_code=status_code)
+
+        result = await client.get_file_activities(limit=5)
+
+        assert result == FileActivityResponse(results=[], last_given=None)
+        mock_http_client.get.assert_awaited_once()
+
+    async def test_get_file_activities_preserves_error_retry(
+        self,
+        client: OCSClient,
+        mock_http_client: AsyncMock,
+    ) -> None:
+        """Preserve the existing second attempt and upstream error mapping."""
+        mock_http_client.get.return_value = create_mock_response(status_code=500)
+
+        with pytest.raises(ExternalServiceError, match=r"Failed to fetch .*status 500"):
+            await client.get_file_activities(limit=5)
+
+        assert mock_http_client.get.await_count == 2
 
     async def test_get_file_activities_multi_file_with_subject_rich(
         self, client: OCSClient, mock_http_client: AsyncMock

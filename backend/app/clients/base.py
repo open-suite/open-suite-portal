@@ -46,18 +46,7 @@ class BaseAPIClient:
             if self.timeout is not None:
                 kwargs["timeout"] = self.timeout
             response = await self.client.get(url, **kwargs)
-
-            if response.status_code == 401:
-                raise CredentialError(_("Your session has expired. Please log in again."))
-            if response.status_code != 200:
-                raise ExternalServiceError(
-                    self.service_name, _(f"Failed to fetch {path} (status {response.status_code})")
-                )
-
-            json_data = response.json()
-            data = response_parser(json_data) if response_parser else json_data
-            validated = TypeAdapter(model_type).validate_python(data)
-            return validated, dict(response.headers)
+            return self._parse_response_with_headers(response, path, model_type, response_parser)
 
         except httpx.TimeoutException:
             logger.exception(f"Timeout calling {self.service_name} API")
@@ -65,6 +54,24 @@ class BaseAPIClient:
         except httpx.HTTPError as e:
             logger.exception(f"HTTP error calling {self.service_name} API")
             raise ExternalServiceError(self.service_name, f"HTTP error: {e}") from e
+
+    def _parse_response_with_headers[T](
+        self,
+        response: httpx.Response,
+        path: str,
+        model_type: type[T],
+        response_parser: Callable[[dict[str, Any]], Any] | None = None,
+    ) -> tuple[T, dict[str, str]]:
+        """Validate a response already fetched by a client."""
+        if response.status_code == 401:
+            raise CredentialError(_("Your session has expired. Please log in again."))
+        if response.status_code != 200:
+            raise ExternalServiceError(self.service_name, _(f"Failed to fetch {path} (status {response.status_code})"))
+
+        json_data = response.json()
+        data = response_parser(json_data) if response_parser else json_data
+        validated = TypeAdapter(model_type).validate_python(data)
+        return validated, dict(response.headers)
 
     async def _get_resource[T](
         self,

@@ -74,6 +74,111 @@ cannot affect a same-origin dashboard reload.
   timeout. A later 2.39-second Calendar miss was retained and did not propagate
   to Docs, Meet or Files.
 
+## Pending experiment: single-pass Files activities - 2026-07-20
+
+This experiment is intentionally separate from the authenticated shared-demo
+ledger above. The production ledger identifies the target; a controlled local
+profile isolates the candidate's effect. An authenticated candidate run remains
+pending deployment by the parent release workflow.
+
+### Why Files is the target
+
+In the latest 20-sample production run, Files is the largest stable required
+API at p50/p75. Calendar has a larger p95 because two cache misses are included,
+but its p75 is 78 ms and it is not the normal-path bottleneck.
+
+| Production KPI              |      p50 |      p75 |      p95 |
+| --------------------------- | -------: | -------: | -------: |
+| Config -> dashboard         |   379 ms |   384 ms |   388 ms |
+| Calendar                    |    67 ms |    78 ms |   757 ms |
+| Docs                        |   125 ms |   130 ms |   143 ms |
+| Meet                        |   126 ms |   134 ms |   144 ms |
+| Files                       |   437 ms |   455 ms |   501 ms |
+| All required widgets settle | 1,008 ms | 1,025 ms | 1,323 ms |
+
+Code inspection found that a successful Files activity load fetched the same
+Nextcloud URL twice: once to detect 204/304 and again to parse a 200 response.
+The candidate parses the already-fetched 200 response. It retains the existing
+204/304 empty result, the second attempt after a non-success response, response
+validation, cursor header, authenticated token and UI loading/error behavior.
+
+### Controlled local browser result
+
+Thirty warm Chromium reloads were collected per variant. Values are exact
+p50/p75/p95 distributions from the raw Resource Timing samples; timings are not
+mixed with the production table above.
+
+| Controlled KPI                  |     Baseline p50/p75/p95 |    Candidate p50/p75/p95 | p75 change |
+| ------------------------------- | -----------------------: | -----------------------: | ---------: |
+| React bootstrap effect starts   |    52.0 / 67.9 / 89.2 ms |    52.8 / 59.8 / 78.3 ms |       -12% |
+| `/config`                       |       4.0 / 4.3 / 5.6 ms |       4.0 / 4.3 / 5.0 ms |         0% |
+| Config response -> dashboard    | 391.9 / 406.6 / 429.6 ms | 388.5 / 394.1 / 413.1 ms |        -3% |
+| Config response -> widget start | 365.3 / 374.4 / 398.7 ms | 364.2 / 369.0 / 391.6 ms |        -1% |
+| Files API                       | 228.0 / 240.6 / 249.2 ms | 116.2 / 126.3 / 136.2 ms |       -48% |
+| Dashboard usable                | 672.2 / 695.7 / 715.4 ms | 557.6 / 572.3 / 595.4 ms |       -18% |
+| All API requests settled        | 658.9 / 681.5 / 703.1 ms | 542.6 / 560.2 / 583.5 ms |       -18% |
+| OCS calls per Files request     |          2.0 / 2.0 / 2.0 |          1.0 / 1.0 / 1.0 |       -50% |
+
+The unchanged bootstrap, config and fan-out intervals show that the usable-time
+gain comes from the eliminated downstream round trip, not from moving work
+outside the sample. The controlled profile contained four portal API requests
+per reload (config, profile, logout prefetch and Files), one widget request and
+a maximum API concurrency of two in every sample.
+
+Protocol:
+
+- Baseline: `main` at `80d7e2f`; candidate: this experiment branch.
+- Chromium 140.0.7339.186, headless, 1440x900, `en-US`, Europe/Amsterdam.
+- Production static export served over loopback; one warm navigation followed
+  by 30 reloads with 100 ms pacing. Playwright screenshots, DOM snapshots and
+  network events were captured for every measured reload.
+- The real FastAPI route, OCS client, Pydantic models and shared HTTP client were
+  used. Authentication was replaced by one deterministic user-scoped auth state
+  and only Files was enabled; no auth or cache timing is claimed by this profile.
+- The fake OCS endpoint returned the production-shaped non-empty activity body
+  and repeated a deterministic 90/110/130/100/120 ms delay schedule. The fixed
+  schedule makes the cost of one versus two downstream requests reproducible.
+- The controlled run used a local Files-only driver with the same marks and
+  Resource Timing calculations as `performance/benchmark.mjs`, plus fake-OCS
+  request counting. That driver is not committed; the committed harness supports
+  an equivalent Files-only gate with
+  `BENCHMARK_REQUIRED_API_FRAGMENTS=/api/v1/config,/api/v1/ocs/activities`.
+- Raw JSON and trace ZIPs remain benchmark artifacts rather than Git inputs;
+  they contain high-volume request and DOM detail plus authenticated session
+  headers and must be treated as sensitive.
+
+### Cold process startup
+
+No container runtime was available in the benchmark orb, so no container-start
+claim is made. Backend process startup was measured instead with 20 alternating
+baseline/candidate launches, from process spawn to the first `/startup` 204,
+with Redis reachable.
+
+| Process startup |       Baseline p50/p75/p95 |      Candidate p50/p75/p95 |
+| --------------- | -------------------------: | -------------------------: |
+| Uvicorn ready   | 931.4 / 951.0 / 1,048.0 ms | 921.8 / 940.1 / 1,048.6 ms |
+
+The p95 is flat (+0.6 ms); this request-path-only change has no material startup
+effect. Frontend static export startup is owned by nginx in the production image
+and was not approximated with the development server.
+
+### Guards and remaining bottlenecks
+
+- Client tests assert exactly one downstream request for successful 200 and
+  empty 204/304 activity responses, and retain the prior second attempt plus
+  error mapping after a non-success response.
+- The browser harness now reports bootstrap-effect start, widget fan-out delay,
+  API request counts and maximum concurrency. `BENCHMARK_TRACE` records a trace
+  only after login and warm-up, so login fields are not captured. Session
+  headers, cookies and authenticated DOM remain present and sensitive.
+- The remaining normal-path bottleneck is the roughly 369 ms p75 interval from
+  config response to widget request start. A previous early-render experiment
+  did not improve it and risked flashing removed widgets, so this PR does not
+  reintroduce that rejected behavior.
+- Shared-demo candidate confirmation is pending parent rollout validation. The
+  local controlled percentage must not be projected directly onto production
+  because real Nextcloud latency, auth and the larger widget fan-out differ.
+
 ## Method
 
 The reproducible harness is in `performance/benchmark.mjs`.
@@ -87,6 +192,7 @@ BENCHMARK_PASS='<demo password>' \
 BENCHMARK_SAMPLES=20 \
 BENCHMARK_LABEL='<release-or-candidate>' \
 BENCHMARK_OUTPUT=/tmp/open-suite-benchmark.json \
+BENCHMARK_TRACE=/tmp/open-suite-benchmark-trace.zip \
 npm run benchmark
 ```
 
@@ -128,6 +234,13 @@ Protocol:
 - Resource Timing measures browser-observed API duration, including time queued
   behind other portal work. This intentionally represents user experience, not
   isolated handler execution time.
+- The harness reports the first config request as the observable upper bound for
+  JavaScript load/hydration becoming effect-ready, config-to-widget fan-out,
+  portal API request counts and maximum request concurrency.
+- When `BENCHMARK_TRACE` is set, tracing starts only after authentication and the
+  unmeasured warm-up, then captures all measured samples without username or
+  password fields. The trace still contains authenticated headers, cookies and
+  DOM snapshots and must be handled as a sensitive artifact.
 - Results report p50, p75 and p95. Raw JSON is a local/CI artifact and is not
   committed because it contains request paths and high-volume sample detail.
 - The shared demo can experience unrelated load. A claimed improvement should
