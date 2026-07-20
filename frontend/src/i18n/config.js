@@ -11,13 +11,10 @@ const messagesMap = {
   nl: nlMessages,
 };
 export const LOCALE_STORAGE_LANG_KEY = "preferred-locale";
-const browserLocale =
-  typeof window !== "undefined"
-    ? window.navigator.language.substring(0, 2)
-    : "nl";
-export const INITIAL_LOCALE = locales.includes(browserLocale)
-  ? browserLocale
-  : "nl";
+// English-only for now (locales/messages stay for when localization lands).
+// Force en regardless of browser/stored preference; no language switcher is
+// shown, so this is the single source of the UI language.
+export const INITIAL_LOCALE = "en";
 
 // Load translations
 export async function getTranslations(locale = INITIAL_LOCALE) {
