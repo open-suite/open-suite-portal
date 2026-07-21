@@ -1,5 +1,6 @@
 import logging
 from typing import Any
+from urllib.parse import unquote_plus, urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
@@ -64,10 +65,11 @@ async def callback(request: Request) -> RedirectResponse:
     except Exception:
         logger.exception("OAuth callback failed")
         # Clear any partial session state
-        request.session.pop("redirect_to", None)
-        # Redirect to login with error parameter instead of raising exception
-        error_message = "authentication_failed"
-        return RedirectResponse(url=f"/login?error={error_message}", status_code=302)
+        redirect_to = request.session.pop("redirect_to", "/")
+        # Return to the requested route with an explicit failure marker. The
+        # frontend displays an actionable error and will not auto-redirect a
+        # second time, avoiding the former /login -> /config -> OIDC loop.
+        return RedirectResponse(url=_with_authentication_error(redirect_to), status_code=302)
 
 
 @router.get("/profile", dependencies=[Depends(get_current_user)])
@@ -105,14 +107,24 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 def _is_safe_redirect(url: str) -> bool:
-    """Validate that redirect URL is safe (relative or https)."""
+    """Validate that a browser-provided redirect stays on the Portal origin."""
     if not url:
         return False
 
-    # Allow relative URLs (start with /) and HTTPS URLs.
-    # Block absolute and protocol-relative URLs.
-    # TODO: Add domain whitelist validation for absolute URLs.
-    return url.startswith("https://") or (url.startswith("/") and not url.startswith("//"))
+    return url.startswith("/") and not url.startswith("//") and "\\" not in url
+
+
+def _with_authentication_error(url: str) -> str:
+    """Add a native OIDC failure marker without dropping route state."""
+    parts = urlsplit(url)
+    raw_query = "&".join(
+        component
+        for component in parts.query.split("&")
+        if unquote_plus(component.partition("=")[0]) != "native_oidc_error"
+    )
+    marker = "native_oidc_error=authentication_failed"
+    raw_query = f"{raw_query}&{marker}" if raw_query else marker
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, raw_query, parts.fragment))
 
 
 def _build_logout_url() -> str:

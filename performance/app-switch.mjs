@@ -60,7 +60,8 @@ if (new URL(bootstrapPage.url()).hostname.startsWith("id.")) {
 }
 await bootstrapPage.waitForURL(`${baseUrl}/**`, { timeout: 30_000 });
 const loginButton = bootstrapPage.getByText("Log in", { exact: true });
-if (await loginButton.isVisible().catch(() => false)) await loginButton.click();
+if (await loginButton.isVisible().catch(() => false))
+  throw new Error("Portal painted a second login screen after edge SSO");
 await bootstrapPage
   .locator(".dashboard-grid")
   .waitFor({ state: "visible", timeout: 30_000 });

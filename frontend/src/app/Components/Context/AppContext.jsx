@@ -2,30 +2,60 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import api from "@/lib/axios";
 import StartLoading from "../../Common/StartLoading";
-import { attemptSilentLoginOrLogin } from "../../../lib/silentLogin";
+import ErrorResult from "../../Common/ErrorResult";
+import { useTranslations } from "../../../i18n/TranslationsProvider";
+import {
+  attemptSilentLoginOrLogin,
+  clearLoginAttempt,
+  hasNativeOidcError,
+  nativeLoginRetryUrl,
+} from "../../../lib/silentLogin";
 
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
+  const t = useTranslations("LoginPage");
   const [appConfig, setAppConfig] = useState(null);
+  const [authFailure, setAuthFailure] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   useEffect(() => {
+    if (hasNativeOidcError()) {
+      setAuthFailure(true);
+      setLoading(false);
+      return;
+    }
+
     const fetchConfig = async () => {
       let redirectingToLogin = false;
       try {
         const res = await api.get("/config");
         setAppConfig(res?.data);
+        clearLoginAttempt();
       } catch (err) {
         setError(err?.response);
-        attemptSilentLoginOrLogin(err);
-        redirectingToLogin = err?.response?.status === 401;
+        redirectingToLogin = attemptSilentLoginOrLogin(err);
+        if (err?.response?.status === 401 && !redirectingToLogin) {
+          setAuthFailure(true);
+        }
       } finally {
         if (!redirectingToLogin) setLoading(false);
       }
     };
     fetchConfig();
   }, []);
+
+  if (authFailure) {
+    return (
+      <ErrorResult
+        errorStatus="error"
+        title={t("failedTitle")}
+        subTitle={t("failedMessage")}
+        btnTitle={t("loginButton")}
+        btnLink={nativeLoginRetryUrl()}
+      />
+    );
+  }
 
   return (
     <StartLoading loading={loading}>
