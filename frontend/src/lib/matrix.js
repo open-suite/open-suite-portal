@@ -204,7 +204,7 @@ const sleep = (ms, signal) =>
 // Standard Matrix sync loop: one initial sync to baseline, then long-poll with
 // the since cursor so the server pushes changes as they happen. Calls
 // onRooms(list) after every sync. Runs until `signal` is aborted. Throws with
-// code 401 if the session is no longer valid (caller should restart SSO).
+// code 401 after clearing an invalid session (caller should become passive).
 export async function runUnreadSync({ signal, onRooms }) {
   const session = getMatrixSession();
   if (!session) return;
