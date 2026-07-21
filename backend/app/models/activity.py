@@ -1,7 +1,8 @@
 from datetime import datetime as DateTime
 from typing import Any, cast
+from urllib.parse import urlencode
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, computed_field, model_validator
 
 from app.core.config import settings
 
@@ -13,6 +14,22 @@ class FileInfo(BaseModel):
     name: str
     path: str | None = None
     link: str | None = None  # Direct link from Nextcloud, may be absent
+
+    @model_validator(mode="after")
+    def add_canonical_link(self) -> "FileInfo":
+        """Keep Nextcloud's stable file route available for every identified file."""
+        if self.link is None and self.id is not None and settings.OCS_URL:
+            self.link = f"{settings.OCS_URL.rstrip('/')}/f/{self.id}"
+        return self
+
+    @computed_field
+    @property
+    def direct_edit_link(self) -> str | None:
+        """Portal broker link for rows eligible for a user-initiated Whiteboard open."""
+        if self.id is None or self.id <= 0 or not self.path or not self.name.lower().endswith(".whiteboard"):
+            return None
+        query = urlencode({"path": self.path})
+        return f"/api/v1/ocs/files/{self.id}/direct-edit?{query}"
 
 
 class Activity(BaseModel):

@@ -291,6 +291,83 @@ class TestOCSEndpoints:
         response = authenticated_client.get("/api/v1/ocs/search")
         assert response.status_code == 422  # Validation error
 
+    @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
+    @patch("app.routes.ocs.get_ocs_client")
+    def test_direct_edit_redirect_mints_once_on_navigation(
+        self, mock_get_client: AsyncMock, authenticated_client: TestClient
+    ) -> None:
+        direct_url = "https://nextcloud.example.com/apps/files/directEditing/one-time-token"
+        nextcloud = AsyncMock()
+        nextcloud.base_url = "https://nextcloud.example.com"
+        nextcloud.open_direct_editing.return_value = direct_url
+        mock_get_client.return_value = nextcloud
+
+        response = authenticated_client.get(
+            "/api/v1/ocs/files/123/direct-edit?path=%2FBoards%2Fplan.whiteboard",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == direct_url
+        assert response.headers["cache-control"] == "no-store"
+        nextcloud.open_direct_editing.assert_awaited_once_with(file_id=123, path="/Boards/plan.whiteboard")
+
+    @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
+    @patch("app.routes.ocs.get_ocs_client")
+    def test_direct_edit_inaccessible_id_falls_back(
+        self, mock_get_client: AsyncMock, authenticated_client: TestClient
+    ) -> None:
+        nextcloud = AsyncMock()
+        nextcloud.base_url = "https://nextcloud.example.com"
+        nextcloud.open_direct_editing.return_value = None
+        mock_get_client.return_value = nextcloud
+
+        response = authenticated_client.get(
+            "/api/v1/ocs/files/987/direct-edit?path=%2FOther%2Fsecret.whiteboard",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "https://nextcloud.example.com/f/987"
+        assert response.headers["cache-control"] == "no-store"
+
+    @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
+    @patch("app.routes.ocs.get_ocs_client")
+    def test_direct_edit_unsupported_file_does_not_mint(
+        self, mock_get_client: AsyncMock, authenticated_client: TestClient
+    ) -> None:
+        nextcloud = AsyncMock()
+        nextcloud.base_url = "https://nextcloud.example.com"
+        mock_get_client.return_value = nextcloud
+
+        response = authenticated_client.get(
+            "/api/v1/ocs/files/123/direct-edit?path=%2FDocuments%2Fnotes.txt",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "https://nextcloud.example.com/f/123"
+        assert response.headers["cache-control"] == "no-store"
+        nextcloud.open_direct_editing.assert_not_awaited()
+
+    @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
+    @patch("app.routes.ocs.get_ocs_client")
+    def test_direct_edit_token_exchange_error_falls_back(
+        self, mock_get_client: AsyncMock, authenticated_client: TestClient
+    ) -> None:
+        from app.exceptions import TokenExchangeError
+
+        mock_get_client.side_effect = TokenExchangeError("exchange failed")
+
+        response = authenticated_client.get(
+            "/api/v1/ocs/files/123/direct-edit?path=%2FBoards%2Fplan.whiteboard",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "https://nextcloud.example.com/f/123"
+        assert response.headers["cache-control"] == "no-store"
+
     @patch("app.routes.ocs.settings.OCS_URL", "https://ocs.example.com")
     @patch("app.routes.ocs.settings.OCS_AUDIENCE", "ocs")
     @patch("app.routes.ocs.get_token")
