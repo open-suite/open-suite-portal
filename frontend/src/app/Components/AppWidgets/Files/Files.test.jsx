@@ -57,6 +57,7 @@ describe("Files", () => {
                 name: "report.docx",
                 path: "Documents/report.docx",
                 link: "https://nextcloud.example.com/f/1394",
+                // Older cached responses may still contain this retired field.
                 direct_edit_link: "/api/v1/ocs/files/1394/direct-edit",
               },
               {
@@ -76,13 +77,16 @@ describe("Files", () => {
     });
   });
 
-  it("routes an identified DOCX row through the explicit-click broker", () => {
+  it("opens the selected DOCX by its durable file link", () => {
     render(<Files app={{ id: "ocs", title: "Files" }} />);
 
-    expect(screen.getByRole("link", { name: "report.docx" })).toHaveAttribute(
+    const selectedFile = screen.getByRole("link", { name: "report.docx" });
+    expect(selectedFile).toHaveAttribute(
       "href",
-      "/api/v1/ocs/files/1394/direct-edit",
+      "https://nextcloud.example.com/f/1394",
     );
+    expect(selectedFile).toHaveAttribute("target", "_blank");
+    expect(selectedFile).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByRole("link", { name: "notes.txt" })).toHaveAttribute(
       "href",
       "https://nextcloud.example.com/f/456",

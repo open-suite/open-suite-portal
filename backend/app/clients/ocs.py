@@ -4,7 +4,6 @@ Reference: https://docs.nextcloud.com/server/latest/developer_manual/client_apis
 """
 
 import logging
-from typing import cast
 from urllib.parse import quote, unquote, urlsplit
 
 import defusedxml.ElementTree as ET
@@ -232,65 +231,3 @@ class OCSClient(BaseAPIClient):
                 )
             )
         return FileActivityResponse(results=file_activities, last_given=None)
-
-    async def open_direct_editing(self, file_id: int) -> str | None:
-        """Ask Nextcloud to mint a one-time Direct Editing navigation URL.
-
-        Deliberately omit editorId: Nextcloud must select and validate the editor
-        from the file's authoritative MIME type. Resolve fileId from the user's
-        mount-aware root so the selected ID, rather than a possibly stale path,
-        determines which file opens.
-        """
-        response = await self.client.post(
-            self._build_url("ocs/v2.php/apps/files/api/v1/directEditing/open"),
-            params={"format": "json"},
-            json={"path": "/", "fileId": file_id},
-            headers=self._auth_headers(),
-            timeout=self.timeout,
-        )
-        if response.status_code != 200:
-            return None
-
-        try:
-            payload_value: object = response.json()
-        except ValueError:
-            return None
-
-        if not isinstance(payload_value, dict):
-            return None
-        payload = cast(dict[str, object], payload_value)
-        ocs_value = payload.get("ocs")
-        if not isinstance(ocs_value, dict):
-            return None
-        ocs = cast(dict[str, object], ocs_value)
-        meta_value = ocs.get("meta")
-        data_value = ocs.get("data")
-        if not isinstance(meta_value, dict) or not isinstance(data_value, dict):
-            return None
-        meta = cast(dict[str, object], meta_value)
-        data = cast(dict[str, object], data_value)
-        url = data.get("url")
-        if meta.get("statuscode") != 200 or not isinstance(url, str):
-            return None
-        return url if self._is_valid_direct_editing_url(url) else None
-
-    def _is_valid_direct_editing_url(self, url: str) -> bool:
-        try:
-            configured = urlsplit(self.base_url)
-            returned = urlsplit(url)
-        except ValueError:
-            return False
-        if returned.scheme != configured.scheme or returned.netloc != configured.netloc:
-            return False
-        if returned.username or returned.password or returned.query or returned.fragment:
-            return False
-
-        base_path = configured.path.rstrip("/")
-        prefixes = (
-            f"{base_path}/apps/files/directEditing/",
-            f"{base_path}/index.php/apps/files/directEditing/",
-        )
-        for prefix in prefixes:
-            if returned.path.startswith(prefix) and "/" not in returned.path[len(prefix) :]:
-                return bool(returned.path[len(prefix) :])
-        return False
