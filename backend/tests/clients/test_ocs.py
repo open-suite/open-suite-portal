@@ -598,6 +598,80 @@ class TestOCSClient:
         assert len(result.results) == 1
         assert result.results[0].activity_id == 2282
 
+    async def test_get_file_activities_hides_deleted_and_non_file_events(
+        self, client: OCSClient, mock_http_client: AsyncMock
+    ) -> None:
+        """Deleted IDs and metadata-only events never reach widget rows."""
+
+        def activity(
+            activity_id: int,
+            action: str,
+            file_id: int,
+            name: str,
+            path: str | None = None,
+        ) -> dict[str, object]:
+            file_path = path or name
+            return {
+                "activity_id": activity_id,
+                "app": "files",
+                "type": action,
+                "user": "testuser",
+                "subject": f"Activity for {name}",
+                "message": None,
+                "link": f"https://nextcloud.example.com/f/{file_id}",
+                "object_type": "files",
+                "object_id": file_id,
+                "object_name": f"/{file_path}",
+                "datetime": "2026-07-22T13:15:50+00:00",
+                "subject_rich": [
+                    "Activity for {file}",
+                    {
+                        "file": {
+                            "type": "file",
+                            "id": str(file_id),
+                            "name": name,
+                            "path": file_path,
+                            "link": f"https://nextcloud.example.com/f/{file_id}",
+                        }
+                    },
+                ],
+            }
+
+        grouped_deletion = activity(104, "file_deleted", 43, "deleted.docx")
+        grouped_deletion["objects"] = {
+            "43": "/deleted.docx",
+            "44": "/omitted-from-rich-summary.docx",
+        }
+        mock_response = create_mock_response(
+            status_code=200,
+            json_data={
+                "ocs": {
+                    "data": [
+                        activity(105, "file_deleted", 41, "deleted-folder"),
+                        grouped_deletion,
+                        activity(103, "unfavorite", 52, "preference-only.docx"),
+                        activity(102, "file_changed", 94, "Q3 planning notes.docx"),
+                        activity(101, "file_created", 42, "child.docx", "deleted-folder/child.docx"),
+                        activity(100, "file_created", 43, "deleted.docx"),
+                        activity(99, "file_created", 44, "omitted-from-rich-summary.docx"),
+                    ]
+                }
+            },
+            headers={"x-activity-last-given": "98"},
+        )
+        mock_http_client.get.return_value = mock_response
+
+        result = await client.get_file_activities(limit=50)
+
+        assert result.last_given == 98
+        assert len(result.results) == 1
+        assert result.results[0].activity_id == 102
+        assert len(result.results[0].files) == 1
+        current_file = result.results[0].files[0]
+        assert current_file.id == 94
+        assert current_file.name == "Q3 planning notes.docx"
+        assert current_file.direct_edit_link == "/api/v1/ocs/files/94/direct-edit"
+
 
 class TestActivityExtractFiles:
     """Tests for Activity.extract_files() method."""
@@ -645,6 +719,50 @@ class TestActivityExtractFiles:
         assert files[0].link == "https://nextcloud.example.com/f/33485"
         assert files[1].id == 33482
         assert files[1].name == "Docs.png"
+
+    def test_extract_files_uses_moved_object_instead_of_stale_placeholders(self) -> None:
+        """Move activities resolve to the moved node, not its old path or destination folder."""
+        activity = Activity(
+            activity_id=2283,
+            app="files",
+            type="file_changed",
+            user="testuser",
+            subject="You moved Q3 planning notes.docx",
+            message=None,
+            link="https://nextcloud.example.com/f/94",
+            object_type="files",
+            object_id=94,
+            object_name="/Archive/Q3 planning notes.docx",
+            datetime=datetime(2026, 7, 22, 13, 15, 50),
+            subject_rich=[
+                "You moved {oldfile} to {newfile}",
+                {
+                    "oldfile": {
+                        "type": "file",
+                        "id": "94",
+                        "name": "Q3 planning notes.docx",
+                        "path": "Q3 planning notes.docx",
+                        "link": "https://nextcloud.example.com/f/94",
+                    },
+                    "newfile": {
+                        "type": "file",
+                        "id": "12",
+                        "name": "Archive",
+                        "path": "Archive",
+                        "link": "https://nextcloud.example.com/f/12",
+                    },
+                },
+            ],
+        )
+
+        files = activity.extract_files()
+
+        assert len(files) == 1
+        assert files[0].id == 94
+        assert files[0].name == "Q3 planning notes.docx"
+        assert files[0].path == "Archive/Q3 planning notes.docx"
+        assert files[0].link == "https://nextcloud.example.com/f/94"
+        assert files[0].direct_edit_link == "/api/v1/ocs/files/94/direct-edit"
 
     def test_extract_files_from_objects_dict(self) -> None:
         """Test extracting files from objects dict when no subject_rich."""

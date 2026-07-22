@@ -70,7 +70,8 @@ class Activity(BaseModel):
     def extract_files(self) -> list[FileInfo]:
         """Extract all files from this activity.
 
-        Priority: subject_rich (has metadata) -> objects dict -> single object
+        Move/rename events use the activity object; otherwise the priority is
+        subject_rich (has metadata) -> objects dict -> single object.
         Uses link directly from Nextcloud when available, null otherwise.
         """
         files: list[FileInfo] = []
@@ -80,6 +81,18 @@ class Activity(BaseModel):
             placeholders = self.subject_rich[1]
             if isinstance(placeholders, dict):
                 typed_placeholders = cast(dict[str, Any], placeholders)
+                # Nextcloud move/rename placeholders contain both the stale
+                # source and a destination that can be the parent folder. The
+                # activity object itself is the moved node at its new path.
+                if "oldfile" in typed_placeholders and "newfile" in typed_placeholders:
+                    return [
+                        FileInfo(
+                            id=self.object_id,
+                            name=self.object_filename,
+                            path=self.object_name.lstrip("/"),
+                            link=self.link or None,
+                        )
+                    ]
                 for value in typed_placeholders.values():
                     if isinstance(value, dict):
                         file_data = cast(dict[str, str], value)

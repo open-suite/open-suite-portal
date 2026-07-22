@@ -14,6 +14,17 @@ from app.models.search import FileSearchResult
 
 logger = logging.getLogger(__name__)
 
+DISPLAYABLE_FILE_ACTIVITY_TYPES = frozenset(
+    {
+        "file_changed",
+        "file_created",
+        "file_favorite_changed",
+        "file_restored",
+        "public_links_upload",
+        "shared",
+    }
+)
+
 
 class OCSClient(BaseAPIClient):
     """Client for NextCloud OCS API.
@@ -66,16 +77,49 @@ class OCSClient(BaseAPIClient):
             response_parser=lambda data: data.get("ocs", {}).get("data", []),
         )
 
-        # Filter by object_type == "files" (includes files + files_sharing apps)
+        # Nextcloud returns newest activities first. Keep the newest lifecycle
+        # state for each ID/path so a deletion also hides older rows and children.
         file_activities: list[FileActivity] = []
+        deleted_file_ids: set[int] = set()
+        deleted_file_paths: set[str] = set()
         for activity in activities:
-            if activity.object_type == "files":
+            if activity.object_type != "files":
+                continue
+
+            files = activity.extract_files()
+            file_ids = {file.id for file in files if file.id is not None}
+            file_paths = {file.path.strip("/") for file in files if file.path and file.path.strip("/")}
+
+            if activity.type == "file_deleted":
+                deleted_file_ids.update(file_ids)
+                deleted_file_paths.update(file_paths)
+                deleted_file_ids.add(activity.object_id)
+                object_path = activity.object_name.strip("/")
+                if object_path:
+                    deleted_file_paths.add(object_path)
+                if activity.objects:
+                    deleted_file_ids.update(int(file_id) for file_id in activity.objects)
+                    deleted_file_paths.update(path.strip("/") for path in activity.objects.values() if path.strip("/"))
+                continue
+
+            if activity.type not in DISPLAYABLE_FILE_ACTIVITY_TYPES:
+                continue
+
+            current_files: list[FileInfo] = []
+            for file in files:
+                path = file.path.strip("/") if file.path else ""
+                is_under_deleted_path = any(
+                    path == deleted_path or path.startswith(f"{deleted_path}/") for deleted_path in deleted_file_paths
+                )
+                if file.id not in deleted_file_ids and not is_under_deleted_path:
+                    current_files.append(file)
+            if current_files:
                 file_activities.append(
                     FileActivity(
                         activity_id=activity.activity_id,
                         datetime=activity.datetime,
                         action=activity.type,
-                        files=activity.extract_files(),
+                        files=current_files,
                     )
                 )
 
