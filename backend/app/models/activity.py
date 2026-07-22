@@ -1,6 +1,5 @@
 from datetime import datetime as DateTime
 from typing import Any, cast
-from urllib.parse import urlencode
 
 from pydantic import BaseModel, computed_field, model_validator
 
@@ -25,11 +24,10 @@ class FileInfo(BaseModel):
     @computed_field
     @property
     def direct_edit_link(self) -> str | None:
-        """Portal broker link for rows eligible for a user-initiated Whiteboard open."""
-        if self.id is None or self.id <= 0 or not self.path or not self.name.lower().endswith(".whiteboard"):
+        """Portal broker link for an explicit, ID-scoped Direct Editing attempt."""
+        if self.id is None or self.id <= 0:
             return None
-        query = urlencode({"path": self.path})
-        return f"/api/v1/ocs/files/{self.id}/direct-edit?{query}"
+        return f"/api/v1/ocs/files/{self.id}/direct-edit"
 
 
 class Activity(BaseModel):

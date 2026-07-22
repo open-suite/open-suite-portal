@@ -53,15 +53,14 @@ describe("Files", () => {
           {
             files: [
               {
-                id: 123,
-                name: "plan.whiteboard",
-                path: "Boards/plan.whiteboard",
-                link: "https://nextcloud.example.com/f/123",
-                direct_edit_link:
-                  "/api/v1/ocs/files/123/direct-edit?path=Boards%2Fplan.whiteboard",
+                id: 1394,
+                name: "report.docx",
+                path: "Documents/report.docx",
+                link: "https://nextcloud.example.com/f/1394",
+                direct_edit_link: "/api/v1/ocs/files/1394/direct-edit",
               },
               {
-                id: 456,
+                id: null,
                 name: "notes.txt",
                 path: "Documents/notes.txt",
                 link: "https://nextcloud.example.com/f/456",
@@ -77,14 +76,12 @@ describe("Files", () => {
     });
   });
 
-  it("does not mint during render and uses the broker only for eligible rows", () => {
+  it("routes an identified DOCX row through the explicit-click broker", () => {
     render(<Files app={{ id: "ocs", title: "Files" }} />);
 
-    expect(
-      screen.getByRole("link", { name: "plan.whiteboard" }),
-    ).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "report.docx" })).toHaveAttribute(
       "href",
-      "/api/v1/ocs/files/123/direct-edit?path=Boards%2Fplan.whiteboard",
+      "/api/v1/ocs/files/1394/direct-edit",
     );
     expect(screen.getByRole("link", { name: "notes.txt" })).toHaveAttribute(
       "href",
