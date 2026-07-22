@@ -28,4 +28,20 @@ describe("MatrixCallback", () => {
 
     expect(exchangeLoginToken).not.toHaveBeenCalled();
   });
+
+  it("reports a failed user-initiated login token exchange", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/matrix-callback?loginToken=invalid-token",
+    );
+    exchangeLoginToken.mockRejectedValue(
+      new Error("Matrix login failed (401)"),
+    );
+
+    render(<MatrixCallback />);
+
+    expect(await screen.findByText("Chat connection failed")).toBeVisible();
+    expect(screen.getByText("Matrix login failed (401)")).toBeVisible();
+  });
 });

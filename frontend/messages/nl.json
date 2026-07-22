@@ -120,6 +120,8 @@
   },
   "Chat": {
     "title": "Chat",
+    "disconnected": "Voorvertoning van ongelezen berichten is niet verbonden.",
+    "openChat": "Chat openen",
     "noUnread": "Geen ongelezen berichten",
     "untitled": "(naamloos)",
     "remove": "Widget verwijderen"
