@@ -9,7 +9,6 @@ import {
   FilePptOutlined,
   FileWordOutlined,
 } from "@ant-design/icons";
-import Link from "next/link";
 import Widget from "@/app/Common/Widget";
 import { useFetchWithRefresh } from "@/app/Common/CustomHooks/useFetchWithRefresh";
 import moment from "moment";
@@ -44,7 +43,12 @@ function Files({ app }) {
 
   const uniqueFiles =
     Array.from(
-      new Map(filteredFiles?.map((item) => [item?.id, item])).values(),
+      new Map(
+        filteredFiles?.map((item) => [
+          item?.id ?? item?.link ?? `${item?.path}:${item?.name}`,
+          item,
+        ]),
+      ).values(),
     ) ?? [];
 
   const paginatedFiles = uniqueFiles?.slice((page - 1) * 3, page * 3) ?? [];
@@ -80,13 +84,15 @@ function Files({ app }) {
                   />
                 }
                 title={
-                  <Link
-                    href={item?.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {item?.name}
-                  </Link>
+                  item?.link && (
+                    <a
+                      href={item?.direct_edit_link ?? item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {item?.name}
+                    </a>
+                  )
                 }
                 description={
                   item?.datetime &&

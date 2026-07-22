@@ -201,6 +201,119 @@ class TestOCSClient:
         assert result.results == []
         assert result.last_given is None
 
+    async def test_open_direct_editing_mints_once_without_selecting_editor(
+        self, client: OCSClient, mock_http_client: AsyncMock
+    ) -> None:
+        direct_url = "https://nextcloud.example.com/apps/files/directEditing/one-time-token"
+        mock_http_client.post.return_value = create_mock_response(
+            json_data={
+                "ocs": {
+                    "meta": {"status": "ok", "statuscode": 200, "message": "OK"},
+                    "data": {"url": direct_url},
+                }
+            }
+        )
+
+        result = await client.open_direct_editing(123, "/Boards/plan.whiteboard")
+
+        assert result == direct_url
+        mock_http_client.post.assert_awaited_once_with(
+            "https://nextcloud.example.com/ocs/v2.php/apps/files/api/v1/directEditing/open",
+            params={"format": "json"},
+            json={"path": "/Boards/plan.whiteboard", "fileId": 123},
+            headers={
+                "Authorization": "Bearer test-token",
+                "OCS-APIRequest": "true",
+                "Accept": "application/json",
+            },
+            timeout=None,
+        )
+        mock_http_client.get.assert_not_awaited()
+
+    async def test_open_direct_editing_rejects_foreign_origin(
+        self, client: OCSClient, mock_http_client: AsyncMock
+    ) -> None:
+        mock_http_client.post.return_value = create_mock_response(
+            json_data={
+                "ocs": {
+                    "meta": {"status": "ok", "statuscode": 200},
+                    "data": {"url": "https://attacker.example/apps/files/directEditing/stolen"},
+                }
+            }
+        )
+
+        assert await client.open_direct_editing(123, "/Boards/plan.whiteboard") is None
+
+    async def test_open_direct_editing_rejects_wrong_path(self, client: OCSClient, mock_http_client: AsyncMock) -> None:
+        mock_http_client.post.return_value = create_mock_response(
+            json_data={
+                "ocs": {
+                    "meta": {"status": "ok", "statuscode": 200},
+                    "data": {"url": "https://nextcloud.example.com/apps/other/directEditing/token"},
+                }
+            }
+        )
+
+        assert await client.open_direct_editing(123, "/Boards/plan.whiteboard") is None
+
+    async def test_open_direct_editing_inaccessible_cross_user_id_fails_closed(
+        self, client: OCSClient, mock_http_client: AsyncMock
+    ) -> None:
+        mock_http_client.post.return_value = create_mock_response(status_code=403)
+
+        assert await client.open_direct_editing(987, "/Other user/secret.whiteboard") is None
+
+        request_headers = mock_http_client.post.await_args.kwargs["headers"]
+        assert request_headers["Authorization"] == "Bearer test-token"
+
+    async def test_open_direct_editing_rejects_malformed_success(
+        self, client: OCSClient, mock_http_client: AsyncMock
+    ) -> None:
+        mock_http_client.post.return_value = create_mock_response(json_data={"ocs": {"meta": None, "data": {}}})
+
+        assert await client.open_direct_editing(123, "/Boards/plan.whiteboard") is None
+
+        mock_http_client.post.return_value = create_mock_response(
+            json_data={
+                "ocs": {
+                    "meta": {"statuscode": 200},
+                    "data": {"url": "https://[invalid/apps/files/directEditing/token"},
+                }
+            }
+        )
+        assert await client.open_direct_editing(123, "/Boards/plan.whiteboard") is None
+
+    async def test_favorite_whiteboard_path_handles_webroot_and_encoding(self, mock_http_client: AsyncMock) -> None:
+        client = OCSClient(
+            http_client=mock_http_client,
+            base_url="https://nextcloud.example.com/cloud",
+            token="test-token",
+        )
+        mock_http_client.get.return_value = create_mock_response(
+            json_data={"ocs": {"data": {"id": "alice@example.com"}}}
+        )
+        report_response = create_mock_response(status_code=207)
+        report_response.text = """<?xml version="1.0"?>
+        <d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+          <d:response>
+            <d:href>/cloud/remote.php/dav/files/alice%40example.com/Boards/Project%20Plan.whiteboard</d:href>
+            <d:propstat>
+              <d:prop>
+                <d:displayname>Project Plan.whiteboard</d:displayname>
+                <oc:fileid>123</oc:fileid>
+              </d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>"""
+        mock_http_client.request.return_value = report_response
+
+        result = await client.get_file_activities(is_favorite=True)
+
+        favorite = result.results[0].files[0]
+        assert favorite.path == "Boards/Project Plan.whiteboard"
+        assert favorite.direct_edit_link == ("/api/v1/ocs/files/123/direct-edit?path=Boards%2FProject+Plan.whiteboard")
+
     async def test_default_timeout_uses_client_default(self, client: OCSClient, mock_http_client: AsyncMock) -> None:
         """Test that default timeout (None) does not pass timeout kwarg, preserving client default."""
         mock_response = create_mock_response(status_code=200, json_data={"ocs": {"data": {"entries": []}}})
