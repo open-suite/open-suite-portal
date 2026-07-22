@@ -168,21 +168,39 @@ class OCSClient(BaseAPIClient):
             response_parser=lambda data: data.get("ocs", {}).get("data", {}).get("entries", []),
         )
         search_results: list[FileSearchResult] = validated
-        file_activities = [
-            FileActivity(files=[FileInfo(name=entry.name, path=entry.path, link=entry.url)]) for entry in search_results
-        ]
+        file_activities: list[FileActivity] = []
+        for entry in search_results:
+            try:
+                file_id = int(entry.attributes.get("fileId", ""))
+            except ValueError:
+                file_id = None
+            file_path = entry.attributes.get("path")
+            file_activities.append(
+                FileActivity(
+                    files=[
+                        FileInfo(
+                            id=file_id,
+                            name=entry.name,
+                            path=file_path.lstrip("/") if file_path else None,
+                            link=entry.url,
+                        )
+                    ]
+                )
+            )
         return FileActivityResponse(results=file_activities, last_given=None)
 
-    async def open_direct_editing(self, file_id: int, path: str) -> str | None:
+    async def open_direct_editing(self, file_id: int) -> str | None:
         """Ask Nextcloud to mint a one-time Direct Editing navigation URL.
 
         Deliberately omit editorId: Nextcloud must select and validate the editor
-        from the file's authoritative MIME type.
+        from the file's authoritative MIME type. Resolve fileId from the user's
+        mount-aware root so the selected ID, rather than a possibly stale path,
+        determines which file opens.
         """
         response = await self.client.post(
             self._build_url("ocs/v2.php/apps/files/api/v1/directEditing/open"),
             params={"format": "json"},
-            json={"path": path, "fileId": file_id},
+            json={"path": "/", "fileId": file_id},
             headers=self._auth_headers(),
             timeout=self.timeout,
         )

@@ -93,8 +93,10 @@ class TestOCSEndpoints:
         assert data["results"][0]["files"][0]["id"] == 456
         assert data["results"][0]["files"][0]["name"] == "document.pdf"
         assert data["results"][0]["files"][0]["link"] == "https://ocs.example.com/f/456"
+        assert data["results"][0]["files"][0]["direct_edit_link"] == "/api/v1/ocs/files/456/direct-edit"
         assert data["results"][1]["activity_id"] == 124
         assert data["results"][1]["files"][0]["name"] == "report.docx"
+        assert data["results"][1]["files"][0]["direct_edit_link"] == "/api/v1/ocs/files/789/direct-edit"
 
         # Verify OCSClient was called correctly
         mock_client_instance.get_file_activities.assert_called_once_with(limit=50, since=0, is_favorite=False)
@@ -293,24 +295,45 @@ class TestOCSEndpoints:
 
     @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
     @patch("app.routes.ocs.get_ocs_client")
-    def test_direct_edit_redirect_mints_once_on_navigation(
+    def test_selected_docx_row_reaches_registered_editor_contract(
         self, mock_get_client: AsyncMock, authenticated_client: TestClient
     ) -> None:
-        direct_url = "https://nextcloud.example.com/apps/files/directEditing/one-time-token"
+        direct_url = "https://nextcloud.example.com/apps/files/directEditing/docx-one-time-token"
         nextcloud = AsyncMock()
         nextcloud.base_url = "https://nextcloud.example.com"
+        nextcloud.get_file_activities.return_value = FileActivityResponse(
+            results=[
+                FileActivity(
+                    files=[
+                        FileInfo(
+                            id=1394,
+                            name="Document (1).docx",
+                            path="Document (1).docx",
+                            link="https://nextcloud.example.com/f/1394",
+                        )
+                    ]
+                )
+            ]
+        )
         nextcloud.open_direct_editing.return_value = direct_url
         mock_get_client.return_value = nextcloud
 
+        files_response = authenticated_client.get("/api/v1/ocs/activities")
+        selected_row = files_response.json()["results"][0]["files"][0]
+        assert selected_row["name"] == "Document (1).docx"
+        assert selected_row["direct_edit_link"] == "/api/v1/ocs/files/1394/direct-edit"
+
         response = authenticated_client.get(
-            "/api/v1/ocs/files/123/direct-edit?path=%2FBoards%2Fplan.whiteboard",
+            selected_row["direct_edit_link"],
             follow_redirects=False,
         )
 
         assert response.status_code == 303
         assert response.headers["location"] == direct_url
+        assert "/f/" not in response.headers["location"]
+        assert "/apps/files/files/" not in response.headers["location"]
         assert response.headers["cache-control"] == "no-store"
-        nextcloud.open_direct_editing.assert_awaited_once_with(file_id=123, path="/Boards/plan.whiteboard")
+        nextcloud.open_direct_editing.assert_awaited_once_with(file_id=1394)
 
     @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
     @patch("app.routes.ocs.get_ocs_client")
@@ -323,7 +346,7 @@ class TestOCSEndpoints:
         mock_get_client.return_value = nextcloud
 
         response = authenticated_client.get(
-            "/api/v1/ocs/files/987/direct-edit?path=%2FOther%2Fsecret.whiteboard",
+            "/api/v1/ocs/files/987/direct-edit",
             follow_redirects=False,
         )
 
@@ -333,22 +356,38 @@ class TestOCSEndpoints:
 
     @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
     @patch("app.routes.ocs.get_ocs_client")
-    def test_direct_edit_unsupported_file_does_not_mint(
+    def test_direct_edit_unsupported_file_falls_back(
         self, mock_get_client: AsyncMock, authenticated_client: TestClient
     ) -> None:
         nextcloud = AsyncMock()
         nextcloud.base_url = "https://nextcloud.example.com"
+        nextcloud.open_direct_editing.return_value = None
         mock_get_client.return_value = nextcloud
 
         response = authenticated_client.get(
-            "/api/v1/ocs/files/123/direct-edit?path=%2FDocuments%2Fnotes.txt",
+            "/api/v1/ocs/files/123/direct-edit",
             follow_redirects=False,
         )
 
         assert response.status_code == 303
         assert response.headers["location"] == "https://nextcloud.example.com/f/123"
         assert response.headers["cache-control"] == "no-store"
-        nextcloud.open_direct_editing.assert_not_awaited()
+        nextcloud.open_direct_editing.assert_awaited_once_with(file_id=123)
+
+    @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
+    @patch("app.routes.ocs.get_ocs_client")
+    def test_direct_edit_invalid_id_falls_back_without_upstream_call(
+        self, mock_get_client: AsyncMock, authenticated_client: TestClient
+    ) -> None:
+        response = authenticated_client.get(
+            "/api/v1/ocs/files/0/direct-edit",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "https://nextcloud.example.com/f/0"
+        assert response.headers["cache-control"] == "no-store"
+        mock_get_client.assert_not_awaited()
 
     @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
     @patch("app.routes.ocs.get_ocs_client")
@@ -360,7 +399,7 @@ class TestOCSEndpoints:
         mock_get_client.side_effect = TokenExchangeError("exchange failed")
 
         response = authenticated_client.get(
-            "/api/v1/ocs/files/123/direct-edit?path=%2FBoards%2Fplan.whiteboard",
+            "/api/v1/ocs/files/123/direct-edit",
             follow_redirects=False,
         )
 

@@ -48,7 +48,7 @@ async def ocs_search(request: Request, http_client: HTTPClient, term: str) -> Fi
 
 
 @router.get("/files/{file_id}/direct-edit", response_class=RedirectResponse)
-async def ocs_direct_edit(request: Request, http_client: HTTPClient, file_id: int, path: str) -> RedirectResponse:
+async def ocs_direct_edit(request: Request, http_client: HTTPClient, file_id: int) -> RedirectResponse:
     """Mint Direct Editing capability only on this explicit browser navigation."""
     headers = {"Cache-Control": "no-store"}
     if not settings.OCS_URL:
@@ -57,12 +57,12 @@ async def ocs_direct_edit(request: Request, http_client: HTTPClient, file_id: in
 
     # This endpoint is reachable manually, so enforce the same narrow eligibility
     # emitted by FileInfo rather than relying on widget rendering alone.
-    if file_id <= 0 or not path.lower().endswith(".whiteboard"):
+    if file_id <= 0:
         return RedirectResponse(fallback, status_code=303, headers=headers)
 
     try:
         client = await get_ocs_client(request, http_client)
-        direct_url = await client.open_direct_editing(file_id=file_id, path=path)
+        direct_url = await client.open_direct_editing(file_id=file_id)
     except (CredentialError, TokenExchangeError, httpx.RequestError):
         direct_url = None
 
