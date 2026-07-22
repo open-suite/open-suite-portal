@@ -108,7 +108,6 @@ class TestOCSClient:
         assert file.name == "report.docx"
         assert file.path == "Documents/report.docx"
         assert file.link == "https://nextcloud.example.com/f/12345"
-        assert file.direct_edit_link == "/api/v1/ocs/files/12345/direct-edit"
         assert result.last_given is None
 
         # Verify HTTP call
@@ -196,7 +195,6 @@ class TestOCSClient:
         assert result.results[0].files[0].id is None
         assert result.results[0].files[0].path is None
         assert result.results[0].files[0].link == "https://nextcloud.example.com/f/12345"
-        assert result.results[0].files[0].direct_edit_link is None
         assert result.results[1].files[0].name == "file2.txt"
         assert result.results[1].files[0].link == "https://nextcloud.example.com/f/67890"
 
@@ -211,89 +209,7 @@ class TestOCSClient:
         assert result.results == []
         assert result.last_given is None
 
-    async def test_open_direct_editing_mints_once_without_selecting_editor(
-        self, client: OCSClient, mock_http_client: AsyncMock
-    ) -> None:
-        direct_url = "https://nextcloud.example.com/apps/files/directEditing/one-time-token"
-        mock_http_client.post.return_value = create_mock_response(
-            json_data={
-                "ocs": {
-                    "meta": {"status": "ok", "statuscode": 200, "message": "OK"},
-                    "data": {"url": direct_url},
-                }
-            }
-        )
-
-        result = await client.open_direct_editing(1394)
-
-        assert result == direct_url
-        mock_http_client.post.assert_awaited_once_with(
-            "https://nextcloud.example.com/ocs/v2.php/apps/files/api/v1/directEditing/open",
-            params={"format": "json"},
-            json={"path": "/", "fileId": 1394},
-            headers={
-                "Authorization": "Bearer test-token",
-                "OCS-APIRequest": "true",
-                "Accept": "application/json",
-            },
-            timeout=None,
-        )
-        mock_http_client.get.assert_not_awaited()
-
-    async def test_open_direct_editing_rejects_foreign_origin(
-        self, client: OCSClient, mock_http_client: AsyncMock
-    ) -> None:
-        mock_http_client.post.return_value = create_mock_response(
-            json_data={
-                "ocs": {
-                    "meta": {"status": "ok", "statuscode": 200},
-                    "data": {"url": "https://attacker.example/apps/files/directEditing/stolen"},
-                }
-            }
-        )
-
-        assert await client.open_direct_editing(123) is None
-
-    async def test_open_direct_editing_rejects_wrong_path(self, client: OCSClient, mock_http_client: AsyncMock) -> None:
-        mock_http_client.post.return_value = create_mock_response(
-            json_data={
-                "ocs": {
-                    "meta": {"status": "ok", "statuscode": 200},
-                    "data": {"url": "https://nextcloud.example.com/apps/other/directEditing/token"},
-                }
-            }
-        )
-
-        assert await client.open_direct_editing(123) is None
-
-    async def test_open_direct_editing_inaccessible_cross_user_id_fails_closed(
-        self, client: OCSClient, mock_http_client: AsyncMock
-    ) -> None:
-        mock_http_client.post.return_value = create_mock_response(status_code=403)
-
-        assert await client.open_direct_editing(987) is None
-
-        request_headers = mock_http_client.post.await_args.kwargs["headers"]
-        assert request_headers["Authorization"] == "Bearer test-token"
-
-    async def test_open_direct_editing_rejects_malformed_success(
-        self, client: OCSClient, mock_http_client: AsyncMock
-    ) -> None:
-        mock_http_client.post.return_value = create_mock_response(json_data={"ocs": {"meta": None, "data": {}}})
-
-        assert await client.open_direct_editing(123) is None
-
-        mock_http_client.post.return_value = create_mock_response(
-            json_data={
-                "ocs": {
-                    "meta": {"statuscode": 200},
-                    "data": {"url": "https://[invalid/apps/files/directEditing/token"},
-                }
-            }
-        )
-        assert await client.open_direct_editing(123) is None
-
-    async def test_favorite_file_keeps_id_path_and_broker_link(self, mock_http_client: AsyncMock) -> None:
+    async def test_favorite_file_keeps_id_path_and_stable_link(self, mock_http_client: AsyncMock) -> None:
         client = OCSClient(
             http_client=mock_http_client,
             base_url="https://nextcloud.example.com/cloud",
@@ -322,7 +238,7 @@ class TestOCSClient:
 
         favorite = result.results[0].files[0]
         assert favorite.path == "Boards/Project Plan.whiteboard"
-        assert favorite.direct_edit_link == "/api/v1/ocs/files/123/direct-edit"
+        assert favorite.link == "https://nextcloud.example.com/cloud/f/123"
 
     async def test_default_timeout_uses_client_default(self, client: OCSClient, mock_http_client: AsyncMock) -> None:
         """Test that default timeout (None) does not pass timeout kwarg, preserving client default."""
@@ -670,7 +586,8 @@ class TestOCSClient:
         current_file = result.results[0].files[0]
         assert current_file.id == 94
         assert current_file.name == "Q3 planning notes.docx"
-        assert current_file.direct_edit_link == "/api/v1/ocs/files/94/direct-edit"
+        assert current_file.link == "https://nextcloud.example.com/f/94"
+        mock_http_client.post.assert_not_awaited()
 
 
 class TestActivityExtractFiles:
@@ -762,7 +679,6 @@ class TestActivityExtractFiles:
         assert files[0].name == "Q3 planning notes.docx"
         assert files[0].path == "Archive/Q3 planning notes.docx"
         assert files[0].link == "https://nextcloud.example.com/f/94"
-        assert files[0].direct_edit_link == "/api/v1/ocs/files/94/direct-edit"
 
     def test_extract_files_from_objects_dict(self) -> None:
         """Test extracting files from objects dict when no subject_rich."""

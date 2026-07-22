@@ -86,7 +86,7 @@ function Files({ app }) {
                 title={
                   item?.link && (
                     <a
-                      href={item?.direct_edit_link ?? item.link}
+                      href={item.link}
                       target="_blank"
                       rel="noopener noreferrer"
                     >

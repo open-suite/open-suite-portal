@@ -1,13 +1,11 @@
 import logging
 
-import httpx
 from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse
 
 from app.clients.ocs import OCSClient
 from app.core.config import settings
 from app.core.http_clients import HTTPClient
-from app.exceptions import CredentialError, ServiceUnavailableError, TokenExchangeError
+from app.exceptions import ServiceUnavailableError
 from app.models.activity import FileActivityResponse
 from app.token_exchange import get_token
 
@@ -45,25 +43,3 @@ async def ocs_search(request: Request, http_client: HTTPClient, term: str) -> Fi
     client = await get_ocs_client(request, http_client)
 
     return await client.search_files(term=term)
-
-
-@router.get("/files/{file_id}/direct-edit", response_class=RedirectResponse)
-async def ocs_direct_edit(request: Request, http_client: HTTPClient, file_id: int) -> RedirectResponse:
-    """Mint Direct Editing capability only on this explicit browser navigation."""
-    headers = {"Cache-Control": "no-store"}
-    if not settings.OCS_URL:
-        raise ServiceUnavailableError("OCS")
-    fallback = f"{settings.OCS_URL.rstrip('/')}/f/{file_id}"
-
-    # This endpoint is reachable manually, so enforce the same narrow eligibility
-    # emitted by FileInfo rather than relying on widget rendering alone.
-    if file_id <= 0:
-        return RedirectResponse(fallback, status_code=303, headers=headers)
-
-    try:
-        client = await get_ocs_client(request, http_client)
-        direct_url = await client.open_direct_editing(file_id=file_id)
-    except (CredentialError, TokenExchangeError, httpx.RequestError):
-        direct_url = None
-
-    return RedirectResponse(direct_url or fallback, status_code=303, headers=headers)

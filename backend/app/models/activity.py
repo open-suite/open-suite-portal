@@ -21,14 +21,6 @@ class FileInfo(BaseModel):
             self.link = f"{settings.OCS_URL.rstrip('/')}/f/{self.id}"
         return self
 
-    @computed_field
-    @property
-    def direct_edit_link(self) -> str | None:
-        """Portal broker link for an explicit, ID-scoped Direct Editing attempt."""
-        if self.id is None or self.id <= 0:
-            return None
-        return f"/api/v1/ocs/files/{self.id}/direct-edit"
-
 
 class Activity(BaseModel):
     """Raw Nextcloud activity - for parsing API response."""
