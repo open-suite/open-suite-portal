@@ -11,7 +11,6 @@ import { useTranslations } from "@/i18n/TranslationsProvider";
 import { useDashboard } from "@/app/Components/Context/DashboardContext";
 import {
   runUnreadSync,
-  startMatrixLogin,
   getMatrixSession,
   getCachedUnreadRooms,
   MATRIX_ELEMENT,
@@ -22,24 +21,44 @@ import {
 function Chat() {
   const t = useTranslations("Chat");
   const dashboard = useDashboard();
-  const [rooms, setRooms] = useState(() => getCachedUnreadRooms() ?? []);
+  const [session] = useState(() => getMatrixSession());
+  const [connected, setConnected] = useState(() => Boolean(session));
+  const [rooms, setRooms] = useState(() => getCachedUnreadRooms(session) ?? []);
 
   useEffect(() => {
-    if (!getMatrixSession()) {
-      startMatrixLogin();
-      return;
-    }
+    if (!session) return;
     const controller = new AbortController();
     runUnreadSync({ signal: controller.signal, onRooms: setRooms }).catch(
       (e) => {
-        if (e.code === 401) startMatrixLogin();
+        if (e.code === 401) {
+          setRooms([]);
+          setConnected(false);
+        }
       },
     );
     return () => controller.abort();
-  }, []);
+  }, [session]);
 
   let body;
-  if (rooms.length === 0) {
+  if (!connected) {
+    body = (
+      <Empty
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description={
+          <>
+            {t("disconnected")}{" "}
+            <Link
+              href={MATRIX_ELEMENT}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {t("openChat")}
+            </Link>
+          </>
+        }
+      />
+    );
+  } else if (rooms.length === 0) {
     body = (
       <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("noUnread")} />
     );

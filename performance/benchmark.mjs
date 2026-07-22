@@ -119,7 +119,8 @@ if (new URL(page.url()).hostname.startsWith("id.")) {
 await page.waitForURL(`${baseUrl}/**`, { timeout: 30_000 });
 
 const loginButton = page.getByText("Log in", { exact: true });
-if (await loginButton.isVisible().catch(() => false)) await loginButton.click();
+if (await loginButton.isVisible().catch(() => false))
+  throw new Error("Portal painted a second login screen after edge SSO");
 await dashboard.waitFor({ state: "visible", timeout: 30_000 });
 
 const requiredApiFragments = [

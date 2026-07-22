@@ -120,6 +120,8 @@
   },
   "Chat": {
     "title": "Chat",
+    "disconnected": "Unread preview is not connected.",
+    "openChat": "Open chat",
     "noUnread": "No unread messages",
     "untitled": "(unnamed room)",
     "remove": "Remove widget"
