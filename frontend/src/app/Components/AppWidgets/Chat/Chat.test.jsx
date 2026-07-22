@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Chat from "./Chat";
 import {
@@ -28,13 +28,34 @@ describe("Chat", () => {
     vi.clearAllMocks();
   });
 
-  it("starts Matrix login when the portal user has no chat session", async () => {
+  it("stays passive and links directly to Element when there is no session", () => {
     getMatrixSession.mockReturnValue(null);
 
     render(<Chat />);
 
-    await waitFor(() => expect(startMatrixLogin).toHaveBeenCalledOnce());
+    expect(screen.getByText("disconnected")).toBeVisible();
+    expect(screen.getByRole("link", { name: "openChat" })).toHaveAttribute(
+      "href",
+      "https://chat.example.test",
+    );
+    expect(startMatrixLogin).not.toHaveBeenCalled();
     expect(runUnreadSync).not.toHaveBeenCalled();
+  });
+
+  it("returns to the passive card without navigating when sync is unauthorized", async () => {
+    getMatrixSession.mockReturnValue({ userId: "@ada:example.test" });
+    runUnreadSync.mockRejectedValue(
+      Object.assign(new Error("Matrix session expired"), { code: 401 }),
+    );
+
+    render(<Chat />);
+
+    expect(await screen.findByText("disconnected")).toBeVisible();
+    expect(startMatrixLogin).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "openChat" })).toHaveAttribute(
+      "href",
+      "https://chat.example.test",
+    );
   });
 
   it("stops the active Matrix sync when the widget unmounts", async () => {
