@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from typing import Annotated
@@ -10,6 +11,7 @@ from app.core import session
 from app.core.config import settings
 from app.core.http_clients import http_client_dependency
 from app.core.oauth import oauth
+from app.core.redis import get_redis_client
 from app.core.translate import _
 from app.exceptions import CredentialError, TokenRefreshConflictError
 from app.models.user import User
@@ -40,12 +42,17 @@ async def get_current_user(
         raise CredentialError(_("Session expired. Please log in again."))
 
     if _needs_refresh(auth.expires_at):
-        await _refresh_token(request, auth.refresh_token)
+        await _refresh_single_flight(request, auth.refresh_token)
 
         # Re-read auth to get updated tokens
         auth = await session.get_auth(request)
         if not auth:
             raise CredentialError(_("Session expired. Please log in again."))
+        if _needs_refresh(auth.expires_at):
+            # The elected refresher finished without producing fresh tokens
+            # (e.g. it lost a cross-replica race). Surface the retryable
+            # conflict so the frontend re-issues the request.
+            raise TokenRefreshConflictError("Refresh token already used")
 
     return auth.user
 
@@ -100,6 +107,44 @@ def _needs_refresh(expires_at: int | None) -> bool:
     if not expires_at:
         return False
     return int(time.time()) >= expires_at - 60
+
+
+_REFRESH_LOCK_TTL_SECONDS = 10
+_REFRESH_WAIT_INTERVAL_SECONDS = 0.1
+_REFRESH_WAIT_ATTEMPTS = 50
+
+
+async def _refresh_single_flight(request: Request, refresh_token: str | None) -> None:
+    """Refresh the session's tokens at most once across concurrent requests.
+
+    Keycloak rotates refresh tokens (revokeRefreshToken): presenting the same
+    token a second time trips reuse detection, which invalidates the whole SSO
+    session and logs the user out of every suite app at once. Parallel widget
+    requests therefore elect one refresher via a Redis lock; the rest wait for
+    its result instead of racing the token endpoint.
+    """
+    session_id = request.session.get("session_id")
+    if not session_id:
+        # Without a session key there is nothing to serialize on.
+        await _refresh_token(request, refresh_token)
+        return
+
+    redis_client = get_redis_client()
+    lock_key = f"refresh-lock:{session_id}"
+    acquired = await redis_client.set(lock_key, "1", nx=True, ex=_REFRESH_LOCK_TTL_SECONDS)
+    if acquired:
+        try:
+            await _refresh_token(request, refresh_token)
+        finally:
+            await redis_client.delete(lock_key)
+        return
+
+    for _attempt in range(_REFRESH_WAIT_ATTEMPTS):
+        await asyncio.sleep(_REFRESH_WAIT_INTERVAL_SECONDS)
+        if not await redis_client.get(lock_key):
+            return
+    logger.warning("Timed out waiting for a concurrent token refresh to finish")
+    raise TokenRefreshConflictError("Refresh token already used")
 
 
 async def _refresh_token(request: Request, refresh_token: str | None) -> None:

@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -267,8 +268,18 @@ class TestGetCurrentUser:
     def mock_request(self) -> Request:
         """Create a mock request object."""
         request = MagicMock(spec=Request)
-        request.session = {"_session_id": "test_session_123"}
+        request.session = {"session_id": "test_session_123"}
         return request
+
+    @pytest.fixture
+    def mock_redis(self) -> Generator[AsyncMock]:
+        """Fake the Redis client backing the refresh lock; lock is free."""
+        client = AsyncMock()
+        client.set = AsyncMock(return_value=True)
+        client.get = AsyncMock(return_value=None)
+        client.delete = AsyncMock()
+        with patch("app.core.authentication.get_redis_client", return_value=client):
+            yield client
 
     @pytest.fixture
     def sample_user(self) -> User:
@@ -331,15 +342,15 @@ class TestGetCurrentUser:
         mock_refresh: AsyncMock,
         mock_session: MagicMock,
         mock_request: Request,
+        mock_redis: AsyncMock,
         expired_auth_state: AuthState,
         valid_auth_state: AuthState,
     ) -> None:
         """Test get_current_user when token refresh is needed."""
-        # Configure the flow: initial auth, re-check after lock, auth after refresh
+        # Configure the flow: initial auth, auth after refresh
         mock_session.get_auth = AsyncMock(
             side_effect=[
                 expired_auth_state,  # Initial check
-                expired_auth_state,  # Re-check after acquiring lock
                 valid_auth_state,  # After refresh
             ]
         )
@@ -360,6 +371,7 @@ class TestGetCurrentUser:
         mock_refresh: AsyncMock,
         mock_session: MagicMock,
         mock_request: Request,
+        mock_redis: AsyncMock,
         expired_auth_state: AuthState,
     ) -> None:
         """Test get_current_user when session is lost after refresh."""
@@ -380,46 +392,76 @@ class TestGetCurrentUser:
     @pytest.mark.asyncio
     @patch("app.core.authentication.session")
     @patch("app.core.authentication._refresh_token")
-    async def test_get_current_user_concurrent_refresh_conflict(
+    async def test_concurrent_requests_refresh_exactly_once(
         self,
         mock_refresh: AsyncMock,
         mock_session: MagicMock,
         mock_request: Request,
+        mock_redis: AsyncMock,
         expired_auth_state: AuthState,
         valid_auth_state: AuthState,
     ) -> None:
-        """Test that concurrent refresh requests result in 409 for conflicting requests."""
-        from app.exceptions import TokenRefreshConflictError
+        """Concurrent requests elect one refresher; the waiter reuses its result.
+
+        Keycloak rotates refresh tokens, and reuse of a rotated token
+        invalidates the whole SSO session — so exactly one refresh may reach
+        the token endpoint.
+        """
+        # Request 1 wins the lock; request 2 finds it taken, then sees it freed.
+        mock_redis.set = AsyncMock(side_effect=[True, None])
+        mock_redis.get = AsyncMock(return_value=None)
+
+        refreshed = False
+
+        async def fake_refresh(request: Request, refresh_token: str | None) -> None:
+            nonlocal refreshed
+            await asyncio.sleep(0)
+            refreshed = True
+
+        async def fake_get_auth(request: Request) -> AuthState:
+            return valid_auth_state if refreshed else expired_auth_state
+
+        mock_refresh.side_effect = fake_refresh
+        mock_session.get_auth = AsyncMock(side_effect=fake_get_auth)
+
+        results = await asyncio.gather(
+            get_current_user(mock_request, None),
+            get_current_user(mock_request, None),
+            return_exceptions=True,
+        )
+
+        assert results == [valid_auth_state.user, valid_auth_state.user]
+        mock_refresh.assert_called_once_with(mock_request, expired_auth_state.refresh_token)
+
+    @pytest.mark.asyncio
+    @patch("app.core.authentication.session")
+    @patch("app.core.authentication._refresh_token")
+    async def test_waiter_conflicts_when_refresh_produces_no_fresh_tokens(
+        self,
+        mock_refresh: AsyncMock,
+        mock_session: MagicMock,
+        mock_request: Request,
+        mock_redis: AsyncMock,
+        expired_auth_state: AuthState,
+    ) -> None:
+        """A waiter that still sees stale tokens surfaces the retryable 409."""
         from fastapi import HTTPException
 
-        # First request succeeds, second gets conflict
-        mock_refresh.side_effect = [
-            None,  # First refresh succeeds
-            TokenRefreshConflictError(),  # Second gets conflict (uses default detail message)
-        ]
+        mock_redis.set = AsyncMock(return_value=None)  # lock held elsewhere
+        mock_redis.get = AsyncMock(return_value=None)  # released on next poll
 
-        # Both requests see expired token initially
         mock_session.get_auth = AsyncMock(
             side_effect=[
-                expired_auth_state,  # Request 1: initial check
-                valid_auth_state,  # Request 1: after refresh
-                expired_auth_state,  # Request 2: initial check
+                expired_auth_state,  # Initial check
+                expired_auth_state,  # Still stale after the other refresher
             ]
         )
 
-        # Start two concurrent requests
-        task1 = asyncio.create_task(get_current_user(mock_request, None))
-        task2 = asyncio.create_task(get_current_user(mock_request, None))
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(mock_request, None)
 
-        results = await asyncio.gather(task1, task2, return_exceptions=True)
-
-        # First should succeed
-        assert results[0] == valid_auth_state.user
-
-        # Second should get 409 conflict
-        assert isinstance(results[1], HTTPException)
-        assert results[1].status_code == 409
-        assert "conflict" in results[1].detail.lower()
+        assert exc_info.value.status_code == 409
+        mock_refresh.assert_not_called()
 
     @pytest.mark.asyncio
     @patch("app.core.authentication.session")
@@ -434,14 +476,14 @@ class TestGetCurrentUser:
         """Test get_current_user when request has no session ID."""
         # Create request without session ID
         request = MagicMock(spec=Request)
-        request.session = {}  # No _session_id
+        request.session = {}  # No session_id: refresh runs unlocked
 
-        mock_session.get_auth.side_effect = [
-            expired_auth_state,  # Initial check
-            expired_auth_state,  # Re-check after lock
-            valid_auth_state,  # After refresh
-        ]
-        mock_session.get_auth = AsyncMock(side_effect=mock_session.get_auth.side_effect)
+        mock_session.get_auth = AsyncMock(
+            side_effect=[
+                expired_auth_state,  # Initial check
+                valid_auth_state,  # After refresh
+            ]
+        )
 
         result = await get_current_user(request, None)
 
@@ -481,6 +523,7 @@ class TestGetCurrentUser:
         mock_needs_refresh: MagicMock,
         mock_session: MagicMock,
         mock_request: Request,
+        mock_redis: AsyncMock,
         sample_user: User,
         should_refresh: bool,
     ) -> None:
@@ -493,10 +536,9 @@ class TestGetCurrentUser:
             expires_at=int(time.time()) + 3600,  # Valid token
         )
 
-        mock_needs_refresh.return_value = should_refresh
-
         if should_refresh:
-            # Mock refresh scenario
+            # Initial check triggers a refresh; the re-read is fresh.
+            mock_needs_refresh.side_effect = [True, False]
             valid_auth = AuthState(
                 sub="user123",
                 user=sample_user,
@@ -507,7 +549,6 @@ class TestGetCurrentUser:
             mock_session.get_auth = AsyncMock(
                 side_effect=[
                     auth_state,  # Initial check
-                    auth_state,  # Re-check after lock
                     valid_auth,  # After refresh
                 ]
             )
@@ -518,59 +559,9 @@ class TestGetCurrentUser:
             mock_refresh.assert_called_once()
         else:
             # No refresh needed
+            mock_needs_refresh.return_value = False
             mock_session.get_auth = AsyncMock(return_value=auth_state)
             result = await get_current_user(mock_request, None)
 
         assert result == sample_user
 
-    @pytest.mark.asyncio
-    @patch("app.core.authentication.session")
-    @patch("app.core.authentication._refresh_token")
-    async def test_concurrent_refresh_returns_409_for_conflicts(
-        self,
-        mock_refresh: AsyncMock,
-        mock_session: MagicMock,
-        mock_request: Request,
-        expired_auth_state: AuthState,
-        valid_auth_state: AuthState,
-    ) -> None:
-        """Test that concurrent refresh requests return 409 for conflicting refreshes.
-
-        With the 409 pattern, we accept that concurrent refreshes may happen.
-        The first succeeds, others get TokenRefreshConflictError which becomes 409.
-        Frontend is expected to retry 409 responses.
-        """
-        from app.exceptions import TokenRefreshConflictError
-        from fastapi import HTTPException
-
-        # First refresh succeeds, others get conflict
-        refresh_effects = [
-            None,  # First succeeds
-            TokenRefreshConflictError("Token already used"),  # Conflict
-            TokenRefreshConflictError("Token already used"),  # Conflict
-            TokenRefreshConflictError("Token already used"),  # Conflict
-            TokenRefreshConflictError("Token already used"),  # Conflict
-        ]
-        mock_refresh.side_effect = refresh_effects
-
-        # All requests see expired token initially
-        get_auth_effects = []
-        for i in range(5):
-            get_auth_effects.append(expired_auth_state)  # Initial check
-            if i == 0:
-                get_auth_effects.append(valid_auth_state)  # After successful refresh
-
-        mock_session.get_auth = AsyncMock(side_effect=get_auth_effects)
-
-        # Start 5 concurrent requests
-        tasks = [get_current_user(mock_request, None) for _ in range(5)]
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # First should succeed
-        assert isinstance(results[0], User)
-
-        # Others should get 409 (which frontend will retry)
-        for i in range(1, 5):
-            assert isinstance(results[i], HTTPException)
-            assert results[i].status_code == 409
