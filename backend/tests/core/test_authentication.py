@@ -564,4 +564,3 @@ class TestGetCurrentUser:
             result = await get_current_user(mock_request, None)
 
         assert result == sample_user
-
