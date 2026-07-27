@@ -30,6 +30,7 @@ const DEFAULT_WIDE = {
   meet: { x: 9, y: 0, w: 3, h: 5 },
   docs: { x: 9, y: 5, w: 3, h: 5 },
   ocs: { x: 0, y: 10, w: 12, h: 6 },
+  projects: { x: 0, y: 16, w: 12, h: 5 },
 };
 
 // Build a complete layout for every breakpoint: reuse the saved position/size

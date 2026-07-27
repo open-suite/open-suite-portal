@@ -7,6 +7,7 @@ import Conversations from "../Components/AppWidgets/Conversations/Conversations"
 import Meet from "../Components/AppWidgets/Meet/Meet";
 import Calendar from "../Components/AppWidgets/Calendar/Calendar";
 import Email from "../Components/AppWidgets/Email/Email";
+import Projects from "../Components/AppWidgets/Projects/Projects";
 
 // Open Suite never shows a vendor product name for an app — always our own
 // label. Overrides the backend-provided app.title (used for the widget header
@@ -31,7 +32,7 @@ const WIDGET_COMPONENTS = {
 // The dashboard decides which are visible and lets the user add/remove them.
 export const dashboardWidgets = (appConfig) => {
   const { applications, is_admin } = appConfig || {};
-  return (applications || [])
+  const widgets = (applications || [])
     .filter((app) => app.enabled && WIDGET_COMPONENTS[app.id])
     .map((app) => {
       const title = WIDGET_TITLES[app.id] || app.title || app.id;
@@ -46,4 +47,24 @@ export const dashboardWidgets = (appConfig) => {
         }),
       };
     });
+  const ocs = (applications || []).find(
+    (app) => app.id === "ocs" && app.enabled,
+  );
+  if (ocs) {
+    widgets.push({
+      id: "projects",
+      title: "Projects",
+      node: React.createElement(Projects, {
+        app: {
+          ...ocs,
+          id: "projects",
+          title: "Projects",
+          url: `${ocs.url.replace(/\/$/, "")}/apps/deck/`,
+          iframe: false,
+        },
+        isAdmin: is_admin,
+      }),
+    });
+  }
+  return widgets;
 };

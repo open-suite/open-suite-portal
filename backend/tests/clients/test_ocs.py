@@ -62,6 +62,43 @@ class TestOCSClient:
         """Test that timeout defaults to None."""
         assert client.timeout is None
 
+    async def test_get_projects_filters_archived_and_counts_cards(
+        self, client: OCSClient, mock_http_client: AsyncMock
+    ) -> None:
+        boards_response = Mock(status_code=200, headers={})
+        boards_response.json.return_value = [
+            {"id": 12, "title": "Website", "color": "0082c9", "archived": False, "owner": "ignored"},
+            {"id": 13, "title": "Old board", "color": "aaaaaa", "archived": True},
+        ]
+        stacks_response = Mock(status_code=200, headers={})
+        stacks_response.json.return_value = [
+            {"id": 1, "title": "Doing", "cards": [{"id": 1}, {"id": 2}]},
+            {"id": 2, "title": "Done", "isDoneColumn": True, "cards": [{"id": 3}]},
+            {"id": 3, "title": "Empty", "isDoneColumn": False},
+        ]
+        mock_http_client.get.side_effect = [boards_response, stacks_response]
+
+        result = await client.get_projects()
+
+        assert [project.model_dump() for project in result] == [
+            {
+                "id": 12,
+                "title": "Website",
+                "color": "0082c9",
+                "card_count": 3,
+                "completed_count": 1,
+                "link": "https://nextcloud.example.com/apps/deck/board/12",
+            }
+        ]
+        assert [call.args[0] for call in mock_http_client.get.call_args_list] == [
+            "https://nextcloud.example.com/index.php/apps/deck/api/v1.0/boards",
+            "https://nextcloud.example.com/index.php/apps/deck/api/v1.0/boards/12/stacks",
+        ]
+        assert all(
+            call.kwargs["headers"]["Authorization"] == "Bearer test-token"
+            for call in mock_http_client.get.call_args_list
+        )
+
     def test_init_strips_trailing_slash(self, mock_http_client: AsyncMock) -> None:
         """Test that trailing slash is stripped from base_url."""
         client = OCSClient(

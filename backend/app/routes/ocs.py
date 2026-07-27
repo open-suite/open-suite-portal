@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.http_clients import HTTPClient
 from app.exceptions import ServiceUnavailableError
 from app.models.activity import FileActivityResponse
+from app.models.project import ProjectSummary
 from app.token_exchange import get_token
 
 logger = logging.getLogger(__name__)
@@ -43,3 +44,10 @@ async def ocs_search(request: Request, http_client: HTTPClient, term: str) -> Fi
     client = await get_ocs_client(request, http_client)
 
     return await client.search_files(term=term)
+
+
+@router.get("/projects", response_model=list[ProjectSummary])
+async def ocs_projects(request: Request, http_client: HTTPClient) -> list[ProjectSummary]:
+    """Get active Nextcloud Deck project summaries."""
+    client = await get_ocs_client(request, http_client)
+    return await client.get_projects()
