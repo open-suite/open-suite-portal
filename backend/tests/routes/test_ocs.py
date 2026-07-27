@@ -4,6 +4,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.models.activity import FileActivity, FileActivityResponse, FileInfo
+from app.models.project import ProjectSummary
 from fastapi.testclient import TestClient
 
 
@@ -19,6 +20,44 @@ class TestOCSEndpoints:
         """Test that search endpoint requires authentication."""
         response = fresh_client.get("/api/v1/ocs/search?term=test")
         assert response.status_code == 401
+
+    def test_ocs_projects_requires_auth(self, fresh_client: TestClient) -> None:
+        response = fresh_client.get("/api/v1/ocs/projects")
+        assert response.status_code == 401
+
+    @patch("app.routes.ocs.settings.OCS_URL", "https://nextcloud.example.com")
+    @patch("app.routes.ocs.get_token", new_callable=AsyncMock, return_value="deck-token")
+    @patch("app.routes.ocs.OCSClient")
+    def test_ocs_projects_success(
+        self, mock_ocs_client: MagicMock, mock_get_token: AsyncMock, authenticated_client: TestClient
+    ) -> None:
+        mock_instance = AsyncMock()
+        mock_instance.get_projects.return_value = [
+            ProjectSummary(
+                id=12,
+                title="Website",
+                color="0082c9",
+                card_count=3,
+                completed_count=1,
+                link="https://nextcloud.example.com/apps/deck/board/12",
+            )
+        ]
+        mock_ocs_client.return_value = mock_instance
+
+        response = authenticated_client.get("/api/v1/ocs/projects")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "id": 12,
+                "title": "Website",
+                "color": "0082c9",
+                "card_count": 3,
+                "completed_count": 1,
+                "link": "https://nextcloud.example.com/apps/deck/board/12",
+            }
+        ]
+        mock_instance.get_projects.assert_awaited_once_with()
 
     @patch("app.routes.ocs.settings.OCS_URL", None)
     def test_ocs_activities_service_disabled(self, authenticated_client: TestClient) -> None:
