@@ -11,6 +11,7 @@ import { dashboardWidgets } from "./Common/pageConfig";
 import Chat from "./Components/AppWidgets/Chat/Chat";
 import { useTranslations } from "../i18n/TranslationsProvider";
 import Loading from "./Common/Loading";
+import { DEFAULT_WIDE, orderDashboardWidgets } from "./Common/dashboardLayout";
 
 const ResponsiveGrid = WidthProvider(Responsive);
 const LAYOUT_KEY = "dashboard_layout_v4"; // v4: curated default arrangement
@@ -20,38 +21,27 @@ const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
 const ONE_COL = new Set(["sm", "xs", "xxs"]);
 const WIDGET_H = 5; // default widget height (rows) — compact by default
 
-// Curated default arrangement (12-col wide breakpoints) for a fresh dashboard:
-// Chat + Calendar down the left, Mail wide in the centre, Meet + Docs down the
-// right, files across the bottom. Any widget not listed (or a saved layout)
-// falls back to the compact two-per-row flow below. Keyed by widget id.
-export const DEFAULT_WIDE = {
-  chat: { x: 0, y: 0, w: 3, h: 5 },
-  calendar: { x: 0, y: 5, w: 3, h: 5 },
-  messages: { x: 3, y: 0, w: 6, h: 10 },
-  meet: { x: 9, y: 0, w: 3, h: 5 },
-  docs: { x: 9, y: 5, w: 3, h: 5 },
-  ocs: { x: 0, y: 10, w: 12, h: 6 },
-  projects: { x: 0, y: 16, w: 12, h: 5 },
-};
-
 // Build a complete layout for every breakpoint: reuse the saved position/size
 // for items we've seen, and drop in a compact default for anything new (a
 // just-added widget). Keeps the grid fully controlled so saved sizes survive
 // refreshes and new items never come in at 1x1.
-function buildLayouts(saved, ids) {
+export function buildLayouts(saved, ids) {
   const out = {};
   for (const bp of Object.keys(COLS)) {
     const perRow = ONE_COL.has(bp) ? 1 : 2;
     const w = 12 / perRow;
+    let fallbackIndex = 0;
     const existing = Object.fromEntries(
       (saved?.[bp] || []).map((l) => [l.i, l]),
     );
     const wide = !ONE_COL.has(bp);
-    out[bp] = ids.map((id, i) => {
+    out[bp] = ids.map((id) => {
       if (existing[id]) return existing[id];
       if (wide && DEFAULT_WIDE[id])
         return { i: id, minH: 3, ...DEFAULT_WIDE[id] };
-      return { i: id, x: (i % perRow) * w, y: 9999, w, h: WIDGET_H, minH: 3 };
+      const x = (fallbackIndex % perRow) * w;
+      fallbackIndex += 1;
+      return { i: id, x, y: 9999, w, h: WIDGET_H, minH: 3 };
     });
   }
   return out;
@@ -86,12 +76,13 @@ export default function Home() {
   const tChat = useTranslations("Chat");
   const tDash = useTranslations("Dashboard");
 
-  // Every widget the current config can show. Chat first, then app widgets.
+  // Every widget the current config can show, in the shared responsive order.
   const universe = useMemo(
-    () => [
-      { id: "chat", title: tChat("title"), node: <Chat /> },
-      ...dashboardWidgets(appConfig),
-    ],
+    () =>
+      orderDashboardWidgets([
+        { id: "chat", title: tChat("title"), node: <Chat /> },
+        ...dashboardWidgets(appConfig),
+      ]),
     [appConfig, tChat],
   );
 

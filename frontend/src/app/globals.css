@@ -642,6 +642,9 @@ footer {
 }
 
 .profile-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--header-text-color);
   text-decoration: none;
 }
@@ -651,14 +654,7 @@ footer {
   pointer-events: none;
 }
 
-.portal-header-placeholder.profile-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.portal-header-profile-name,
-.portal-header-profile-text {
+.portal-header-profile-name {
   display: inline-block;
   width: 80px;
   overflow: hidden;
@@ -667,11 +663,15 @@ footer {
   white-space: nowrap;
 }
 
-.portal-header-profile-text {
+.portal-header-profile-placeholder {
   height: 12px;
   border-radius: 4px;
   background: currentColor;
   opacity: 0.35;
+}
+
+.portal-header-profile-in-iframe {
+  display: none;
 }
 
 .portal-header-affix {
@@ -698,6 +698,20 @@ footer {
   border-radius: 4px;
   color: var(--header-text-color);
   outline: none;
+}
+
+@media (max-width: 480px) {
+  .ant-layout-header {
+    padding-inline: 16px;
+  }
+
+  .logo {
+    margin-right: auto;
+  }
+
+  .portal-header-profile-name {
+    display: none;
+  }
 }
 
 .header-menu {
