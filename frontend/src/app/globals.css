@@ -548,8 +548,43 @@ footer {
 }
 
 .portal-bootstrap-shell {
-  min-height: calc(100vh - 48px);
+  min-height: 100vh;
   background: var(--layout-background);
+}
+
+.portal-bootstrap-header {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 50px;
+  background: var(--header-background);
+  color: var(--header-text-color);
+}
+
+.portal-bootstrap-brand {
+  margin-right: 10%;
+  font-size: 1rem;
+}
+
+.portal-bootstrap-profile,
+.portal-bootstrap-logout {
+  display: block;
+  flex: 0 0 auto;
+  background: var(--color-border-subtle);
+}
+
+.portal-bootstrap-profile {
+  width: 88px;
+  height: 32px;
+  border-radius: 16px;
+}
+
+.portal-bootstrap-logout {
+  width: 18px;
+  height: 18px;
+  margin-left: 12px;
+  border-radius: 4px;
 }
 
 .portal-bootstrap-content {
@@ -557,8 +592,9 @@ footer {
 }
 
 .portal-bootstrap-action {
-  width: 28px;
-  height: 28px;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
   margin: 0 8px 8px auto;
   border: 1px solid var(--color-border-default);
   border-radius: 50%;
@@ -567,19 +603,52 @@ footer {
 
 .portal-bootstrap-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 36px;
   gap: 16px;
-  max-width: 1600px;
-  margin: 0 auto;
 }
 
 .portal-bootstrap-widget {
   box-sizing: border-box;
-  min-height: 196px;
   padding: 20px;
   border: 1px solid var(--card-border-color);
   border-radius: 8px;
   background: var(--card-background);
+}
+
+.portal-bootstrap-chat,
+.portal-bootstrap-calendar {
+  grid-column: 1 / span 3;
+}
+
+.portal-bootstrap-messages {
+  grid-column: 4 / span 6;
+  grid-row: 1 / span 10;
+}
+
+.portal-bootstrap-meet,
+.portal-bootstrap-docs {
+  grid-column: 10 / span 3;
+}
+
+.portal-bootstrap-chat,
+.portal-bootstrap-meet {
+  grid-row: 1 / span 5;
+}
+
+.portal-bootstrap-calendar,
+.portal-bootstrap-docs {
+  grid-row: 6 / span 5;
+}
+
+.portal-bootstrap-ocs {
+  grid-column: 1 / span 12;
+  grid-row: 11 / span 6;
+}
+
+.portal-bootstrap-projects {
+  grid-column: 1 / span 12;
+  grid-row: 17 / span 5;
 }
 
 .portal-bootstrap-title,
@@ -607,9 +676,14 @@ footer {
   width: 42%;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 995px) {
   .portal-bootstrap-grid {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .portal-bootstrap-widget {
+    min-height: 244px;
   }
 }
 

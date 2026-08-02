@@ -5,7 +5,6 @@ import {
   attemptSilentLoginOrLogin,
   clearLoginAttempt,
   hasNativeOidcError,
-  nativeLoginRetryUrl,
 } from "@/lib/silentLogin";
 import { AppProvider, useAppContext } from "./AppContext";
 
@@ -46,17 +45,25 @@ describe("AppProvider", () => {
     hasNativeOidcError.mockReturnValue(false);
   });
 
-  it("keeps the bootstrap shell visible until config is ready", async () => {
+  it("keeps the dashboard-shaped bootstrap shell visible until config is ready", async () => {
     const request = deferred();
     api.get.mockReturnValue(request.promise);
 
-    render(
+    const { container } = render(
       <AppProvider>
         <ContextProbe />
       </AppProvider>,
     );
 
     expect(screen.getByLabelText("Loading Open Suite")).toBeInTheDocument();
+    expect(container.querySelector(".portal-bootstrap-header")).not.toBeNull();
+    expect(
+      container.querySelector(".portal-bootstrap-messages"),
+    ).not.toBeNull();
+    expect(container.querySelector(".portal-bootstrap-ocs")).not.toBeNull();
+    expect(container.querySelectorAll(".portal-bootstrap-widget")).toHaveLength(
+      7,
+    );
     expect(screen.queryByText("Documents")).not.toBeInTheDocument();
 
     await act(async () => {
