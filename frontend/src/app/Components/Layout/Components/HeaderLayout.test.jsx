@@ -5,17 +5,20 @@ import { clearMatrixSession } from "@/lib/matrix";
 import HeaderLayout from "./HeaderLayout";
 
 vi.mock("next/link", () => ({
-  default: ({ children, onClick, ...props }) => (
-    <a
-      {...props}
-      onClick={(event) => {
-        event.preventDefault();
-        onClick?.(event);
-      }}
-    >
-      {children}
-    </a>
-  ),
+  default: ({ children, onClick, prefetch, ...props }) => {
+    void prefetch;
+    return (
+      <a
+        {...props}
+        onClick={(event) => {
+          event.preventDefault();
+          onClick?.(event);
+        }}
+      >
+        {children}
+      </a>
+    );
+  },
 }));
 
 vi.mock("../../../../i18n/TranslationsProvider", () => ({
@@ -83,5 +86,43 @@ describe("HeaderLayout", () => {
       "href",
       "https://account.example.test",
     );
+  });
+
+  it("reserves profile and logout geometry while authentication is handled", () => {
+    const { container, rerender } = render(<HeaderLayout isProfile />);
+    const profileLink = screen.getByRole("link", { name: "My Account" });
+    const profileName = container.querySelector(".portal-header-profile-name");
+    const logoutLink = screen.getByRole("link", { name: "Logout" });
+
+    expect(
+      screen.getByRole("link", { name: "Open Suite" }),
+    ).toBeInTheDocument();
+    expect(profileLink).toHaveAttribute("aria-disabled", "true");
+    expect(profileName).toHaveClass("portal-header-profile-placeholder");
+    expect(logoutLink).toHaveAttribute("aria-disabled", "true");
+
+    fireEvent.click(logoutLink);
+    expect(clearMatrixSession).not.toHaveBeenCalled();
+
+    rerender(<HeaderLayout isProfile={false} profile="Ada" />);
+
+    expect(screen.getByRole("link", { name: "Ada" })).toBe(profileLink);
+    expect(container.querySelector(".portal-header-profile-name")).toBe(
+      profileName,
+    );
+    expect(screen.getByRole("link", { name: "Logout" })).toBe(logoutLink);
+    expect(profileName).not.toHaveClass("portal-header-profile-placeholder");
+  });
+
+  it("keeps the same header node when affixing changes", () => {
+    const { container, rerender } = render(
+      <HeaderLayout isAffixHeader={false} />,
+    );
+    const header = container.querySelector("header");
+
+    rerender(<HeaderLayout isAffixHeader />);
+
+    expect(container.querySelector("header")).toBe(header);
+    expect(header.parentElement).toHaveClass("portal-header-affix");
   });
 });

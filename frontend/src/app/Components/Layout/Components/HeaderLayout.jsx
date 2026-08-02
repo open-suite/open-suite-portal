@@ -1,5 +1,6 @@
 "use client";
-import { Affix, Avatar, Dropdown, Flex, Layout, Tooltip } from "antd";
+import { Avatar, Dropdown, Flex, Layout, Tooltip } from "antd";
+import { useSyncExternalStore } from "react";
 import {
   LogoutOutlined,
   UserOutlined,
@@ -12,6 +13,7 @@ import { useTranslations } from "../../../../i18n/TranslationsProvider";
 import { useTheme } from "../../Context/ThemeContext";
 import { clearMatrixSession } from "@/lib/matrix";
 const { Header } = Layout;
+const subscribeToIframeState = () => () => {};
 
 function HeaderLayout({
   isProfile = true,
@@ -25,8 +27,11 @@ function HeaderLayout({
   const tNav = useTranslations("Navigation");
   const tTheme = useTranslations("Theme");
   const { theme, toggleTheme } = useTheme();
-  const isInIframe =
-    typeof window !== "undefined" && window.self !== window.top;
+  const isInIframe = useSyncExternalStore(
+    subscribeToIframeState,
+    () => window.self !== window.top,
+    () => false,
+  );
 
   const items = [
     isAdmin && {
@@ -53,6 +58,16 @@ function HeaderLayout({
       icon: <BgColorsOutlined />,
     },
   ].filter(Boolean); // Filter out falsey values (like the admin item when !isAdmin)
+  const preventPendingNavigation = (event) => {
+    if (isProfile) event.preventDefault();
+  };
+  const logout = (event) => {
+    if (isProfile) {
+      event.preventDefault();
+      return;
+    }
+    clearMatrixSession();
+  };
   const header = (
     <Header>
       <Flex>
@@ -61,30 +76,44 @@ function HeaderLayout({
             {tHome("title")}
           </Link>
         </div>
-        {!isProfile && (
-          <>
-            <Dropdown menu={{ items }}>
-              <Link className="profile-link" href="/#">
-                <Avatar icon={<UserOutlined />} /> {!isInIframe && profile}
-              </Link>
-            </Dropdown>
-            <Tooltip title={tHome("logout")}>
-              <Link
-                className="logout-link"
-                href="/api/v1/auth/logout"
-                aria-label={tHome("logout")}
-                onClick={clearMatrixSession}
-              >
-                <LogoutOutlined />
-              </Link>
-            </Tooltip>
-          </>
-        )}
+        <Dropdown disabled={isProfile} menu={{ items }}>
+          <Link
+            className={`profile-link${isProfile ? " portal-header-placeholder" : ""}`}
+            href="/#"
+            aria-disabled={isProfile || undefined}
+            aria-label={profile || tHeader("myAccount")}
+            onClick={preventPendingNavigation}
+          >
+            <Avatar icon={<UserOutlined />} />
+            <span
+              className={`portal-header-profile-name${isProfile ? " portal-header-profile-placeholder" : ""}${isInIframe ? " portal-header-profile-in-iframe" : ""}`}
+              aria-hidden={isProfile || isInIframe || undefined}
+            >
+              {isProfile ? null : profile}
+            </span>
+          </Link>
+        </Dropdown>
+        <Tooltip title={tHome("logout")}>
+          <Link
+            className={`logout-link${isProfile ? " portal-header-placeholder" : ""}`}
+            href="/api/v1/auth/logout"
+            aria-disabled={isProfile || undefined}
+            aria-label={tHome("logout")}
+            onClick={logout}
+            prefetch={false}
+          >
+            <LogoutOutlined />
+          </Link>
+        </Tooltip>
       </Flex>
     </Header>
   );
 
-  return isAffixHeader ? <Affix>{header}</Affix> : header;
+  return (
+    <div className={isAffixHeader ? "portal-header-affix" : undefined}>
+      {header}
+    </div>
+  );
 }
 
 export default HeaderLayout;

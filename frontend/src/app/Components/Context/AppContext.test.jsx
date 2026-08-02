@@ -5,7 +5,6 @@ import {
   attemptSilentLoginOrLogin,
   clearLoginAttempt,
   hasNativeOidcError,
-  nativeLoginRetryUrl,
 } from "@/lib/silentLogin";
 import { AppProvider, useAppContext } from "./AppContext";
 
@@ -17,7 +16,6 @@ vi.mock("@/lib/silentLogin", () => ({
   attemptSilentLoginOrLogin: vi.fn(),
   clearLoginAttempt: vi.fn(),
   hasNativeOidcError: vi.fn(() => false),
-  nativeLoginRetryUrl: vi.fn(() => "/api/v1/auth/login?retry"),
 }));
 
 function deferred() {
@@ -31,9 +29,13 @@ function deferred() {
 }
 
 function ContextProbe() {
-  const { appConfig, error } = useAppContext();
+  const { appConfig, authFailure, error, loading } = useAppContext();
   return (
-    <div>
+    <div
+      data-auth-failure={String(authFailure)}
+      data-loading={String(loading)}
+      data-testid="context"
+    >
       <span>{appConfig?.applications?.[0]?.title}</span>
       <span>{error?.status}</span>
     </div>
@@ -56,7 +58,10 @@ describe("AppProvider", () => {
       </AppProvider>,
     );
 
-    expect(screen.getByLabelText("Loading Open Suite")).toBeInTheDocument();
+    expect(screen.getByTestId("context")).toHaveAttribute(
+      "data-loading",
+      "true",
+    );
     expect(screen.queryByText("Documents")).not.toBeInTheDocument();
 
     await act(async () => {
@@ -65,6 +70,10 @@ describe("AppProvider", () => {
     });
 
     expect(screen.getByText("Documents")).toBeInTheDocument();
+    expect(screen.getByTestId("context")).toHaveAttribute(
+      "data-loading",
+      "false",
+    );
     expect(api.get).toHaveBeenCalledWith("/config");
     expect(clearLoginAttempt).toHaveBeenCalledOnce();
   });
@@ -81,9 +90,10 @@ describe("AppProvider", () => {
 
     expect(await screen.findByText("503")).toBeInTheDocument();
     expect(attemptSilentLoginOrLogin).toHaveBeenCalledWith(error);
-    expect(
-      screen.queryByLabelText("Loading Open Suite"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("context")).toHaveAttribute(
+      "data-loading",
+      "false",
+    );
   });
 
   it("keeps the bootstrap shell mounted while a 401 redirects to login", async () => {
@@ -97,11 +107,15 @@ describe("AppProvider", () => {
       </AppProvider>,
     );
 
-    expect(
-      await screen.findByLabelText("Loading Open Suite"),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("context")).toHaveAttribute(
+      "data-loading",
+      "true",
+    );
     expect(attemptSilentLoginOrLogin).toHaveBeenCalledWith(error);
-    expect(screen.queryByText("401")).not.toBeInTheDocument();
+    expect(screen.getByTestId("context")).toHaveAttribute(
+      "data-auth-failure",
+      "false",
+    );
   });
 
   it("shows an actionable failure instead of starting a second automatic login", async () => {
@@ -115,15 +129,14 @@ describe("AppProvider", () => {
       </AppProvider>,
     );
 
-    expect(await screen.findByText("failedTitle")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "loginButton" })).toHaveAttribute(
-      "href",
-      "/api/v1/auth/login?retry",
+    expect(await screen.findByTestId("context")).toHaveAttribute(
+      "data-auth-failure",
+      "true",
     );
     expect(attemptSilentLoginOrLogin).toHaveBeenCalledOnce();
   });
 
-  it("paints only the native OIDC failure when the callback reports one", async () => {
+  it("exposes the native OIDC failure without probing config", async () => {
     hasNativeOidcError.mockReturnValue(true);
 
     render(
@@ -132,7 +145,10 @@ describe("AppProvider", () => {
       </AppProvider>,
     );
 
-    expect(await screen.findByText("failedTitle")).toBeInTheDocument();
+    expect(await screen.findByTestId("context")).toHaveAttribute(
+      "data-auth-failure",
+      "true",
+    );
     expect(api.get).not.toHaveBeenCalled();
     expect(attemptSilentLoginOrLogin).not.toHaveBeenCalled();
   });
