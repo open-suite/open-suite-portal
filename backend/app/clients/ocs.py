@@ -3,6 +3,7 @@
 Reference: https://docs.nextcloud.com/server/latest/developer_manual/client_apis/index.html
 """
 
+import asyncio
 import logging
 from urllib.parse import quote, unquote, urlsplit
 
@@ -33,6 +34,7 @@ class OCSClient(BaseAPIClient):
     """
 
     service_name = "NextCloud OCS"
+    project_stack_concurrency = 4
 
     def _auth_headers(self) -> dict[str, str]:
         headers = super()._auth_headers()
@@ -46,25 +48,24 @@ class OCSClient(BaseAPIClient):
             path="index.php/apps/deck/api/v1.0/boards",
             model_type=list[DeckBoard],
         )
-        projects: list[ProjectSummary] = []
-        for board in boards:
-            if board.archived:
-                continue
-            stacks = await self._get_resource(
-                path=f"index.php/apps/deck/api/v1.0/boards/{board.id}/stacks",
-                model_type=list[DeckStack],
-            )
-            projects.append(
-                ProjectSummary(
-                    id=board.id,
-                    title=board.title,
-                    color=board.color,
-                    card_count=sum(len(stack.cards) for stack in stacks),
-                    completed_count=sum(len(stack.cards) for stack in stacks if stack.is_done_column),
-                    link=f"{self.base_url}/apps/deck/board/{board.id}",
+        semaphore = asyncio.Semaphore(self.project_stack_concurrency)
+
+        async def summarize(board: DeckBoard) -> ProjectSummary:
+            async with semaphore:
+                stacks = await self._get_resource(
+                    path=f"index.php/apps/deck/api/v1.0/boards/{board.id}/stacks",
+                    model_type=list[DeckStack],
                 )
+            return ProjectSummary(
+                id=board.id,
+                title=board.title,
+                color=board.color,
+                card_count=sum(len(stack.cards) for stack in stacks),
+                completed_count=sum(len(stack.cards) for stack in stacks if stack.is_done_column),
+                link=f"{self.base_url}/apps/deck/board/{board.id}",
             )
-        return projects
+
+        return list(await asyncio.gather(*(summarize(board) for board in boards if not board.archived)))
 
     async def get_file_activities(
         self,
