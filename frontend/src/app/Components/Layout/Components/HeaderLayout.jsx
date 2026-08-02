@@ -1,5 +1,5 @@
 "use client";
-import { Affix, Avatar, Dropdown, Flex, Layout, Tooltip } from "antd";
+import { Avatar, Dropdown, Flex, Layout, Tooltip } from "antd";
 import {
   LogoutOutlined,
   UserOutlined,
@@ -61,11 +61,30 @@ function HeaderLayout({
             {tHome("title")}
           </Link>
         </div>
-        {!isProfile && (
+        {isProfile ? (
+          <>
+            <span
+              className="profile-link portal-header-placeholder"
+              aria-hidden="true"
+            >
+              <Avatar icon={<UserOutlined />} />
+              <span className="portal-header-profile-text" />
+            </span>
+            <span
+              className="logout-link portal-header-placeholder"
+              aria-hidden="true"
+            >
+              <LogoutOutlined />
+            </span>
+          </>
+        ) : (
           <>
             <Dropdown menu={{ items }}>
               <Link className="profile-link" href="/#">
-                <Avatar icon={<UserOutlined />} /> {!isInIframe && profile}
+                <Avatar icon={<UserOutlined />} />{" "}
+                {!isInIframe && (
+                  <span className="portal-header-profile-name">{profile}</span>
+                )}
               </Link>
             </Dropdown>
             <Tooltip title={tHome("logout")}>
@@ -84,7 +103,11 @@ function HeaderLayout({
     </Header>
   );
 
-  return isAffixHeader ? <Affix>{header}</Affix> : header;
+  return (
+    <div className={isAffixHeader ? "portal-header-affix" : undefined}>
+      {header}
+    </div>
+  );
 }
 
 export default HeaderLayout;

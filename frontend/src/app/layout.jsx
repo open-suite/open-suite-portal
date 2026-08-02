@@ -20,17 +20,17 @@ export default async function RootLayout({ children }) {
   return (
     <html lang={INITIAL_LOCALE}>
       <body suppressHydrationWarning>
-        <Suspense fallback={<Loading />}>
-          <LanguageProvider initialLocale={INITIAL_LOCALE}>
-            <TranslationsProvider initialMessages={messages}>
-              <AppProvider>
-                <ThemeProvider>
-                  <PageLayout>{children}</PageLayout>
-                </ThemeProvider>
-              </AppProvider>
-            </TranslationsProvider>
-          </LanguageProvider>
-        </Suspense>
+        <LanguageProvider initialLocale={INITIAL_LOCALE}>
+          <TranslationsProvider initialMessages={messages}>
+            <AppProvider>
+              <ThemeProvider>
+                <PageLayout>
+                  <Suspense fallback={<Loading />}>{children}</Suspense>
+                </PageLayout>
+              </ThemeProvider>
+            </AppProvider>
+          </TranslationsProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

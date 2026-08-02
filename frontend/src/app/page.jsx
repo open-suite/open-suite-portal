@@ -10,6 +10,7 @@ import { DashboardContext } from "./Components/Context/DashboardContext";
 import { dashboardWidgets } from "./Common/pageConfig";
 import Chat from "./Components/AppWidgets/Chat/Chat";
 import { useTranslations } from "../i18n/TranslationsProvider";
+import Loading from "./Common/Loading";
 
 const ResponsiveGrid = WidthProvider(Responsive);
 const LAYOUT_KEY = "dashboard_layout_v4"; // v4: curated default arrangement
@@ -23,7 +24,7 @@ const WIDGET_H = 5; // default widget height (rows) — compact by default
 // Chat + Calendar down the left, Mail wide in the centre, Meet + Docs down the
 // right, files across the bottom. Any widget not listed (or a saved layout)
 // falls back to the compact two-per-row flow below. Keyed by widget id.
-const DEFAULT_WIDE = {
+export const DEFAULT_WIDE = {
   chat: { x: 0, y: 0, w: 3, h: 5 },
   calendar: { x: 0, y: 5, w: 3, h: 5 },
   messages: { x: 3, y: 0, w: 6, h: 10 },
@@ -130,7 +131,7 @@ export default function Home() {
   const addWidget = (id) =>
     persistRemoved((removed || []).filter((x) => x !== id));
 
-  if (removed === null || layouts === null) return null;
+  if (removed === null || layouts === null) return <Loading />;
   if (!universe.length) {
     return <Empty description={tDash("noApps")} style={{ marginTop: 80 }} />;
   }
@@ -174,7 +175,7 @@ export default function Home() {
         onLayoutChange={onLayoutChange}
       >
         {visible.map((it) => (
-          <div key={it.id} className="dashboard-item">
+          <div key={it.id} className="dashboard-item" data-widget-id={it.id}>
             <span className="widget-drag-handle" title="Drag to rearrange">
               <HolderOutlined />
             </span>

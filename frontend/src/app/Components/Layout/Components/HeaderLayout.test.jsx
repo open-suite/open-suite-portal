@@ -84,4 +84,30 @@ describe("HeaderLayout", () => {
       "https://account.example.test",
     );
   });
+
+  it("reserves profile and logout geometry while authentication is handled", () => {
+    const { container } = render(<HeaderLayout isProfile />);
+
+    expect(
+      screen.getByRole("link", { name: "Open Suite" }),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(".portal-header-placeholder.profile-link"),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(".portal-header-placeholder.logout-link"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the same header node when affixing changes", () => {
+    const { container, rerender } = render(
+      <HeaderLayout isAffixHeader={false} />,
+    );
+    const header = container.querySelector("header");
+
+    rerender(<HeaderLayout isAffixHeader />);
+
+    expect(container.querySelector("header")).toBe(header);
+    expect(header.parentElement).toHaveClass("portal-header-affix");
+  });
 });
