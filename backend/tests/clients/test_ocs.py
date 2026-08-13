@@ -1,5 +1,6 @@
 """Tests for OCS client."""
 
+import asyncio
 from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, Mock
@@ -9,6 +10,7 @@ import pytest
 from app.clients.ocs import OCSClient
 from app.exceptions import ExternalServiceError
 from app.models.activity import Activity, FileActivityResponse
+from app.models.project import DeckBoard, DeckCard, DeckStack
 
 
 def create_mock_response(
@@ -98,6 +100,43 @@ class TestOCSClient:
             call.kwargs["headers"]["Authorization"] == "Bearer test-token"
             for call in mock_http_client.get.call_args_list
         )
+
+    async def test_get_projects_bounds_parallel_stack_reads_and_preserves_board_order(self, client: OCSClient) -> None:
+        boards = [DeckBoard(id=board_id, title=f"Board {board_id}") for board_id in range(1, 7)]
+        release_reads = asyncio.Event()
+        four_reads_started = asyncio.Event()
+        active_reads = 0
+        max_active_reads = 0
+        started_reads = 0
+
+        async def get_resource(path: str, model_type: object) -> list[DeckBoard] | list[DeckStack]:
+            nonlocal active_reads, max_active_reads, started_reads
+            if path.endswith("/boards"):
+                return boards
+
+            active_reads += 1
+            started_reads += 1
+            max_active_reads = max(max_active_reads, active_reads)
+            if started_reads == client.project_stack_concurrency:
+                four_reads_started.set()
+            try:
+                await release_reads.wait()
+                board_id = int(path.split("/")[-2])
+                return [DeckStack(cards=[DeckCard(id=board_id)])]
+            finally:
+                active_reads -= 1
+
+        client._get_resource = AsyncMock(side_effect=get_resource)
+        projects_task = asyncio.create_task(client.get_projects())
+
+        await asyncio.wait_for(four_reads_started.wait(), timeout=1)
+        await asyncio.sleep(0)
+        assert started_reads == client.project_stack_concurrency
+        release_reads.set()
+        projects = await projects_task
+
+        assert max_active_reads == client.project_stack_concurrency
+        assert [project.id for project in projects] == [1, 2, 3, 4, 5, 6]
 
     def test_init_strips_trailing_slash(self, mock_http_client: AsyncMock) -> None:
         """Test that trailing slash is stripped from base_url."""
