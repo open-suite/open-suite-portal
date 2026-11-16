@@ -6,6 +6,9 @@ class DeckBoard(BaseModel):
     title: str
     color: str = ""
     archived: bool = False
+    # Deck keeps deleted boards in the list (for undo) with a deletion
+    # timestamp; their stacks endpoint answers 403.
+    deleted_at: int = Field(default=0, alias="deletedAt")
 
 
 class DeckCard(BaseModel):

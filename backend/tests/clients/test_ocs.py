@@ -62,13 +62,14 @@ class TestOCSClient:
         """Test that timeout defaults to None."""
         assert client.timeout is None
 
-    async def test_get_projects_filters_archived_and_counts_cards(
+    async def test_get_projects_filters_archived_and_deleted_and_counts_cards(
         self, client: OCSClient, mock_http_client: AsyncMock
     ) -> None:
         boards_response = Mock(status_code=200, headers={})
         boards_response.json.return_value = [
-            {"id": 12, "title": "Website", "color": "0082c9", "archived": False, "owner": "ignored"},
+            {"id": 12, "title": "Website", "color": "0082c9", "archived": False, "deletedAt": 0, "owner": "ignored"},
             {"id": 13, "title": "Old board", "color": "aaaaaa", "archived": True},
+            {"id": 14, "title": "Deleted board", "color": "bbbbbb", "archived": False, "deletedAt": 1794826140},
         ]
         stacks_response = Mock(status_code=200, headers={})
         stacks_response.json.return_value = [
