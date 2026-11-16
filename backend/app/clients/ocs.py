@@ -41,14 +41,14 @@ class OCSClient(BaseAPIClient):
         return headers
 
     async def get_projects(self) -> list[ProjectSummary]:
-        """Return active Deck boards with aggregate card progress."""
+        """Return active (not archived or deleted) Deck boards with aggregate card progress."""
         boards = await self._get_resource(
             path="index.php/apps/deck/api/v1.0/boards",
             model_type=list[DeckBoard],
         )
         projects: list[ProjectSummary] = []
         for board in boards:
-            if board.archived:
+            if board.archived or board.deleted_at:
                 continue
             stacks = await self._get_resource(
                 path=f"index.php/apps/deck/api/v1.0/boards/{board.id}/stacks",
