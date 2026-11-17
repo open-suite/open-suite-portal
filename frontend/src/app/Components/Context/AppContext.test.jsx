@@ -6,7 +6,12 @@ import {
   clearLoginAttempt,
   hasNativeOidcError,
 } from "@/lib/silentLogin";
+import { warmAppSessions } from "@/lib/appSessions";
 import { AppProvider, useAppContext } from "./AppContext";
+
+vi.mock("@/lib/appSessions", () => ({
+  warmAppSessions: vi.fn(),
+}));
 
 vi.mock("@/lib/axios", () => ({
   default: { get: vi.fn() },
@@ -76,6 +81,9 @@ describe("AppProvider", () => {
     );
     expect(api.get).toHaveBeenCalledWith("/config");
     expect(clearLoginAttempt).toHaveBeenCalledOnce();
+    expect(warmAppSessions).toHaveBeenCalledExactlyOnceWith([
+      { title: "Documents" },
+    ]);
   });
 
   it("exposes a non-authentication bootstrap error to the application", async () => {
@@ -90,6 +98,7 @@ describe("AppProvider", () => {
 
     expect(await screen.findByText("503")).toBeInTheDocument();
     expect(attemptSilentLoginOrLogin).toHaveBeenCalledWith(error);
+    expect(warmAppSessions).not.toHaveBeenCalled();
     expect(screen.getByTestId("context")).toHaveAttribute(
       "data-loading",
       "false",

@@ -6,6 +6,7 @@ import {
   clearLoginAttempt,
   hasNativeOidcError,
 } from "../../../lib/silentLogin";
+import { warmAppSessions } from "../../../lib/appSessions";
 
 const AppContext = createContext();
 
@@ -27,6 +28,7 @@ export function AppProvider({ children }) {
         const res = await api.get("/config");
         setAppConfig(res?.data);
         clearLoginAttempt();
+        warmAppSessions(res?.data?.applications);
       } catch (err) {
         setError(err?.response);
         redirectingToLogin = attemptSilentLoginOrLogin(err);
