@@ -76,6 +76,13 @@ function HeaderLayout({
             {tHome("title")}
           </Link>
         </div>
+        <Link
+          href="/search"
+          aria-label="Search workspace"
+          style={{ marginInline: "auto 20px", color: "#fff" }}
+        >
+          Search
+        </Link>
         <Dropdown disabled={isProfile} menu={{ items }}>
           <Link
             className={`profile-link${isProfile ? " portal-header-placeholder" : ""}`}

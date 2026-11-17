@@ -41,8 +41,8 @@ describe("Admin", () => {
 
     expect(screen.getByText("Admin Portal")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /docs.example.test/ }),
-    ).toHaveAttribute("href", "https://docs.example.test/admin");
+      screen.getByRole("link", { name: /Open application/ }),
+    ).toHaveAttribute("href", "https://docs.example.test");
     expect(state.replace).not.toHaveBeenCalled();
   });
 
@@ -53,5 +53,24 @@ describe("Admin", () => {
 
     await waitFor(() => expect(state.replace).toHaveBeenCalledWith("/"));
     expect(screen.queryByText("Admin Portal")).not.toBeInTheDocument();
+  });
+
+  it("links people management to the configured realm", () => {
+    state.appConfig = {
+      is_admin: true,
+      applications: [],
+      redirect_to_account_page: "https://id.example.test/realms/work/account/",
+    };
+    render(<Admin />);
+    expect(screen.getByRole("link", { name: /Manage people/ })).toHaveAttribute(
+      "href",
+      "https://id.example.test/admin/work/console/#/work/users",
+    );
+  });
+
+  it("waits for config without redirecting", () => {
+    state.appConfig = null;
+    render(<Admin />);
+    expect(state.replace).not.toHaveBeenCalled();
   });
 });
