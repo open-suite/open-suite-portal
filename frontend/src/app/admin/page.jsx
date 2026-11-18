@@ -12,7 +12,7 @@ function identityConsole(accountUrl) {
   const url = new URL(safe);
   const match = url.pathname.match(/^(.*)\/realms\/([^/]+)\/account\/?$/);
   return match
-    ? `${url.origin}${match[1]}/admin/${match[2]}/console/#/${match[2]}/users`
+    ? `${url.origin}${match[1]}/admin/${match[2]}/console/#/${match[2]}`
     : null;
 }
 
@@ -27,15 +27,21 @@ export default function Admin() {
   const apps = (appConfig.applications || []).filter((app) =>
     safeWebUrl(app.url),
   );
-  const usersUrl = identityConsole(appConfig.redirect_to_account_page);
+  const consoleUrl = identityConsole(appConfig.redirect_to_account_page);
   const filesUrl = apps.find((app) => app.id === "ocs")?.url;
   const actions = [
     {
       title: "People & access",
       description:
         "Add people, reset passwords, and disable accounts in the identity console.",
-      url: usersUrl,
+      url: consoleUrl && `${consoleUrl}/users`,
       action: "Manage people",
+    },
+    {
+      title: "Groups",
+      description: "Manage group membership and role assignments in Keycloak.",
+      url: consoleUrl && `${consoleUrl}/groups`,
+      action: "Manage groups",
     },
     {
       title: "Files & storage",
