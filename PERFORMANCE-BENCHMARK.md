@@ -7,6 +7,27 @@ improvements remain visible in Git history.
 
 ## Latest summary
 
+The November 18 live demo ran portal build `75e844f`. The portal dashboard
+benchmark completed 20 warm reloads with zero discarded attempts in the
+existing authenticated Chrome 156 profile at 1440 × 900. The timings below
+are milliseconds from navigation start unless the metric names an interval.
+
+| Metric                                |  p50 |  p75 |  p95 |
+| ------------------------------------- | ---: | ---: | ---: |
+| Portal shell                          |  152 |  156 |  160 |
+| Dashboard visible                     |  532 |  535 |  544 |
+| Config response to dashboard          |  341 |  344 |  353 |
+| First widget data                     |  632 |  647 |  679 |
+| All required widget requests finished | 1075 | 1103 | 1155 |
+| Global spinner exposure               |    0 |    0 |    0 |
+| Widget spinner exposure               |  573 |  582 |  662 |
+
+Dashboard visibility exceeded the 500 ms p75 target by 35 ms. Widget requests
+exceeded their 1000 ms p75 target by 103 ms. This run measures the deployed
+dashboard before the admin Groups shortcut.
+
+## July 11 benchmark
+
 **Current accepted build:** `aeb6371`
 (`ghcr.io/open-suite/portal-{frontend,api}:sha-aeb6371`)
 

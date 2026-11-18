@@ -66,6 +66,10 @@ describe("Admin", () => {
       "href",
       "https://id.example.test/admin/work/console/#/work/users",
     );
+    expect(screen.getByRole("link", { name: /Manage groups/ })).toHaveAttribute(
+      "href",
+      "https://id.example.test/admin/work/console/#/work/groups",
+    );
   });
 
   it("waits for config without redirecting", () => {
