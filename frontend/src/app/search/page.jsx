@@ -15,6 +15,20 @@ import { useAppContext } from "../Components/Context/AppContext";
 import { searchSuite } from "@/lib/suiteSearch";
 import "../suite-tools.css";
 
+// Keep a visible link in its slot as each source confirms or withdraws it.
+function reconcilePreview(preview, results, pending) {
+  if (!preview.length) return results;
+  const fresh = new Map(results.map((item) => [item.url, item]));
+  const ordered = [];
+  for (const item of preview) {
+    if (fresh.has(item.url)) {
+      ordered.push(fresh.get(item.url));
+      fresh.delete(item.url);
+    } else if (pending?.has(item.source)) ordered.push(item);
+  }
+  return [...ordered, ...fresh.values()];
+}
+
 export default function SearchPage() {
   const { appConfig } = useAppContext();
   const [query, setQuery] = useState("");
@@ -22,22 +36,57 @@ export default function SearchPage() {
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(false);
   const request = useRef(null);
+  // Only the last completed search in this mounted page can supply previews.
+  const lastSearch = useRef(null);
+  function recentMatches(term) {
+    const last = lastSearch.current;
+    const prefix = term.trim().toLowerCase();
+    if (
+      !last ||
+      performance.now() - last.at > 30000 ||
+      !prefix.startsWith(last.prefix)
+    )
+      return [];
+    return last.results.filter((item) =>
+      item.title?.toLowerCase().includes(prefix),
+    );
+  }
   useEffect(() => () => request.current?.abort(), []);
   async function search(value) {
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
     const term = value.trim();
-    setState(null);
+    const preview = recentMatches(term);
+    lastSearch.current = null;
+    setState(
+      preview.length
+        ? { results: preview, failures: [], term, partial: true }
+        : null,
+    );
     setLoading(Boolean(term));
     if (!term) return;
     const response = await searchSuite(
       term,
       appConfig?.applications || [],
       controller.signal,
+      (partial, pending) => {
+        setState({
+          ...partial,
+          term,
+          partial: true,
+          results: reconcilePreview(preview, partial.results, pending),
+        });
+      },
     );
     if (controller.signal.aborted) return;
-    setState({ ...response, term });
+    const results = reconcilePreview(preview, response.results);
+    lastSearch.current = {
+      prefix: term.toLowerCase(),
+      results,
+      at: performance.now(),
+    };
+    setState({ ...response, results, term });
     setLoading(false);
   }
   const results =
@@ -61,10 +110,21 @@ export default function SearchPage() {
           allowClear
           value={query}
           onChange={(event) => {
-            setQuery(event.target.value);
+            const value = event.target.value;
+            setQuery(value);
             request.current?.abort();
             setLoading(false);
-            setState(null);
+            const matches = recentMatches(value);
+            setState(
+              matches.length
+                ? {
+                    results: matches,
+                    failures: [],
+                    term: value.trim(),
+                    partial: true,
+                  }
+                : null,
+            );
           }}
           onSearch={search}
           loading={loading}
@@ -77,7 +137,7 @@ export default function SearchPage() {
         onChange={setFilter}
       />
       <div aria-live="polite" className="suite-results">
-        {loading && (
+        {loading && !results.length && (
           <div className="suite-empty">
             <Spin />
             <p>Searching your workspace…</p>
@@ -90,10 +150,17 @@ export default function SearchPage() {
             title={`${state.failures.join(" and ")} could not be searched. Try again to include those results.`}
           />
         )}
-        {state && (
+        {state && !state.partial && (
           <Typography.Paragraph type="secondary">
             {results.length} results shown for “{state.term}” · Up to 20 Wiki
             pages
+          </Typography.Paragraph>
+        )}
+        {state?.partial && results.length > 0 && (
+          <Typography.Paragraph type="secondary">
+            {loading
+              ? "Searching remaining sources…"
+              : "Matches from your last search · Press Enter to search all sources"}
           </Typography.Paragraph>
         )}
         {results.map((item) => (
@@ -107,7 +174,7 @@ export default function SearchPage() {
             <span aria-hidden="true">↗</span>
           </a>
         ))}
-        {state && !results.length && (
+        {state && !state.partial && !results.length && (
           <Empty
             description={
               state.failures.length

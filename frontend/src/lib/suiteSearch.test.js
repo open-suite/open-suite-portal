@@ -35,6 +35,29 @@ describe("suite search", () => {
     expect(result.failures).toEqual(["Files"]);
     expect(result.results).toHaveLength(1);
   });
+  it("publishes Wiki while Files is pending and keeps the link after Files fails", async () => {
+    let failFiles;
+    api.get.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          failFiles = reject;
+        }),
+    );
+    api.get.mockResolvedValueOnce({
+      data: { results: [{ title: "Plan", url: "https://wiki.test/plan" }] },
+    });
+    const progress = vi.fn();
+    const search = searchSuite("plan", apps, undefined, progress);
+    await vi.waitFor(() => expect(progress).toHaveBeenCalledOnce());
+    const [partial, pending] = progress.mock.calls[0];
+    expect(partial.results[0].source).toBe("Wiki");
+    expect([...pending]).toEqual(["Files"]);
+    failFiles(new Error("unavailable"));
+    expect(await search).toEqual({
+      results: partial.results,
+      failures: ["Files"],
+    });
+  });
   it("does not query unconfigured apps", async () => {
     expect(await searchSuite("plan", [])).toEqual({
       results: [],
