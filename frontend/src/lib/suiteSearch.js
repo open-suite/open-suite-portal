@@ -10,7 +10,7 @@ export function safeWebUrl(value) {
 }
 
 // Existing endpoints exchange the current user's token and enforce app permissions.
-export async function searchSuite(query, applications, signal) {
+export async function searchSuite(query, applications, signal, onProgress) {
   const sources = [
     { id: "ocs", label: "Files", path: "/ocs/search", params: { term: query } },
     {
@@ -22,39 +22,46 @@ export async function searchSuite(query, applications, signal) {
   ].filter((source) =>
     applications.some((app) => app.id === source.id && app.url),
   );
-  const responses = await Promise.allSettled(
-    sources.map((source) =>
-      api.get(source.path, { params: source.params, signal }),
-    ),
-  );
-  const results = [],
-    failures = [];
-  responses.forEach((response, index) => {
-    const source = sources[index];
-    if (response.status === "rejected") {
-      failures.push(source.label);
-      return;
-    }
-    const rows = response.value.data.results || [];
-    const items =
-      source.id === "ocs"
-        ? rows.flatMap((row) =>
-            row.files.map((file) => ({
-              title: file.name,
-              url: file.link,
-              detail: file.path,
-            })),
-          )
-        : rows.map((doc) => ({
-            title: doc.title || "Untitled page",
-            url: doc.url,
-            detail: doc.updated_date,
-          }));
-    items.forEach((item) => {
-      const url = safeWebUrl(item.url);
-      if (url && !results.some((result) => result.url === url))
-        results.push({ ...item, url, source: source.label });
-    });
+  const results = new Map();
+  const failures = [];
+  const pending = new Set(sources.map((source) => source.label));
+  const snapshot = () => ({
+    results: [...results.values()],
+    failures: [...failures],
   });
-  return { results, failures };
+  await Promise.all(
+    sources.map(async (source) => {
+      try {
+        const response = await api.get(source.path, {
+          params: source.params,
+          signal,
+        });
+        const rows = response.data.results || [];
+        const items =
+          source.id === "ocs"
+            ? rows.flatMap((row) =>
+                row.files.map((file) => ({
+                  title: file.name,
+                  url: file.link,
+                  detail: file.path,
+                })),
+              )
+            : rows.map((doc) => ({
+                title: doc.title || "Untitled page",
+                url: doc.url,
+                detail: doc.updated_date,
+              }));
+        items.forEach((item) => {
+          const url = safeWebUrl(item.url);
+          if (url && !results.has(url))
+            results.set(url, { ...item, url, source: source.label });
+        });
+      } catch {
+        failures.push(source.label);
+      }
+      pending.delete(source.label);
+      if (!signal?.aborted && pending.size) onProgress?.(snapshot(), pending);
+    }),
+  );
+  return snapshot();
 }

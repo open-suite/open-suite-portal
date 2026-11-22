@@ -7,6 +7,42 @@ improvements remain visible in Git history.
 
 ## Latest summary
 
+### Files and Wiki search
+
+Local production builds of `066e380` (A) and the search change (B) ran in the
+same Chrome 156.0.8078.80 profile in A, B, B, A order. The fixture alternates
+90 ms and 450 ms API delays between Files and Wiki. Each submitted query still
+issued one request to each source. The first link for a new query arrives when
+the faster service returns. Refining a recent query can show matching links
+while typing, before submission.
+
+| Input to rendered result (ms) | Before p50 | After p50 | Before p95 | After p95 |
+| ----------------------------- | ---------: | --------: | ---------: | --------: |
+| New query, first link         |      474.4 |     115.6 |      491.2 |     130.2 |
+| New query, complete results   |      474.4 |     479.0 |      491.3 |     508.1 |
+| Refinement, first link        |      476.0 |       1.5 |      500.0 |       2.6 |
+| Refinement, complete results  |      476.0 |     475.0 |      500.0 |     491.5 |
+
+Each cell contains 40 measured searches. Each run discarded its first pair.
+The clock starts at the browser input event. Playwright then presses Enter.
+A DOM observer checks the rendered link's bounds, title and destination. For
+completion it requires every expected link and the final count for the exact
+query. This measures DOM readiness on an already-open page. It excludes first
+navigation, compositor presentation, live API latency and opening the linked
+file. The slowest complete new query rose from 494.3 to 812.9 ms. This change
+improves early access to a link; the measurements show no overall speedup for
+complete searches. [Per-trial measurements](performance/search-results.csv)
+
+To reproduce, run `npm ci` and `npm run build` in each revision's `frontend`
+directory. Serve each resulting `dist` on a separate loopback port, for example
+with `python3 -m http.server 4187 --bind 127.0.0.1 --directory dist`. Run
+`npm ci` in the candidate's `performance` directory. With a Chrome CDP endpoint
+on port 9222, run `node search.mjs http://127.0.0.1:4187` from that directory
+against each export. The same driver supplies synthetic responses for both.
+[Benchmark driver](performance/search.mjs)
+
+### Dashboard
+
 The November 18 live demo ran portal build `75e844f`. The portal dashboard
 benchmark completed 20 warm reloads with zero discarded attempts in the
 existing authenticated Chrome 156 profile at 1440 × 900. The timings below
